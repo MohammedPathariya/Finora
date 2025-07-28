@@ -1,0 +1,118 @@
+Phase 1 – Backend Foundation
+1. Setup Flask App Structure
+Finalize folder structure: routes/, services/, models/
+
+Add basic routes for:
+
+/health → returns API status
+
+/recommend → will later provide investment recommendations
+
+/chat → for AI-based Q&A
+
+
+2. Integrate Stock Market Data APIs
+Choose an API (Finnhub, Alpha Vantage)
+
+Write a service module in services/stock_service.py to:
+
+Fetch ETF/stock data (price, performance, etc.)
+
+Support fetching historical data for charts
+
+3. Implement Simple Portfolio Recommendation Logic
+Map risk levels → ETF allocation logic
+
+Example:
+
+python
+Copy
+Edit
+def recommend_portfolio(risk_level):
+    if risk_level == "low":
+        return {"BND": 70, "VTI": 30}
+    elif risk_level == "medium":
+        return {"VTI": 60, "QQQ": 40}
+    ...
+4. Set up Flask-CORS and Test API
+Ensure React can call Flask endpoints
+
+Test endpoints with curl or Postman
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Phase 2 – Frontend Base Setup
+5. Initialize React Components
+Create main pages:
+
+Onboarding Form (collect age, income, risk level)
+
+Dashboard (display recommendations)
+
+Chat Interface (for AI Q&A)
+
+Set up React Router for navigation
+
+6. Connect Frontend to Backend
+Use axios or fetch to call /recommend API
+
+Display portfolio suggestions and allocations visually (using Recharts or Chart.js)
+
+Phase 3 – AI Chat and Explanation Engine
+7. LLM Integration
+Use OpenAI API (or free Hugging Face LLM)
+
+Create /chat endpoint:
+
+Takes user question
+
+Sends it to LLM with context (risk level, data)
+
+Returns a plain-language answer
+
+8. “Explain-This” Feature
+User clicks on ETF name → React calls /chat with
+"Explain what [ETF] is and why it fits a [risk-level] investor"
+
+Display AI response in a modal or side panel
+
+Phase 4 – Simulator and UI Polish
+9. Investment Growth Simulator
+Backend function to calculate future value (compound interest formula or CAGR)
+
+Endpoint /simulate → returns year-by-year data
+
+Frontend → line chart for visualization
+
+10. UI/UX Polish
+Brand as Finora (logo, colors, typography)
+
+Add tagline and hero section
+
+Smooth interactions (loading states, success messages)
+
+Phase 5 – Documentation and Deployment
+11. README and Project Docs
+Full instructions: setup, running, screenshots
+
+Include project description and tagline
+
+12. Deployment
+Deploy frontend to Vercel
+
+Deploy backend to Render
+
+Update URLs in frontend API calls
+
+Add demo link to GitHub
