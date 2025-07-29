@@ -3,6 +3,9 @@
 from flask import Flask
 from flask_cors import CORS
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from routes.health import health_bp
 from routes.recommend import recommend_bp
 
