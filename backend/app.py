@@ -9,7 +9,8 @@ load_dotenv()
 
 from routes.health import health_bp
 from routes.recommend import recommend_bp
-from routes.onboarding import onboard_bp  # new
+from routes.onboarding import onboard_bp
+from routes.chat import chat_bp
 
 app = Flask(__name__)
 CORS(app)
@@ -17,8 +18,8 @@ CORS(app)
 # Existing endpoints
 app.register_blueprint(health_bp)
 app.register_blueprint(recommend_bp)
-# New onboarding endpoint
 app.register_blueprint(onboard_bp)
+app.register_blueprint(chat_bp)
 
 @app.route("/")
 def home():

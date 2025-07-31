@@ -1,5 +1,19 @@
--e \n--- ./scripts/__init__.py ---\n
--e \n--- ./scripts/test_market.py ---\n
+
+
+========================================
+FILE: ./scripts/__init__.py
+========================================
+
+
+
+----------------------------------------
+
+
+
+========================================
+FILE: ./scripts/test_market.py
+========================================
+
 #!/usr/bin/env python
 
 from services.market_service import fetch_quote, fetch_daily_history
@@ -20,7 +34,16 @@ def main():
 
 if __name__ == "__main__":
     main()
--e \n--- ./app.py ---\n
+
+
+----------------------------------------
+
+
+
+========================================
+FILE: ./app.py
+========================================
+
 # backend/app.py
 
 from flask import Flask
@@ -48,7 +71,16 @@ def home():
     return {"message": "Finora backend is running"}
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)-e \n--- ./routes/health.py ---\n
+    app.run(debug=True, port=5000)
+
+----------------------------------------
+
+
+
+========================================
+FILE: ./routes/health.py
+========================================
+
 # backend/routes/health.py
 
 from flask import Blueprint, jsonify
@@ -57,11 +89,20 @@ health_bp = Blueprint("health", __name__)
 
 @health_bp.route("/health", methods=["GET"])
 def health():
-    return jsonify(status="ok", service="Finora backend")-e \n--- ./routes/onboarding.py ---\n
+    return jsonify(status="ok", service="Finora backend")
+
+----------------------------------------
+
+
+
+========================================
+FILE: ./routes/onboarding.py
+========================================
+
 # backend/routes/onboarding.py
 
 from flask import Blueprint, request, jsonify
-from services.onboarding_service import create_profile, get_profile
+from services.onboarding_service import create_profile, get_profile, delete_profile
 
 onboard_bp = Blueprint("onboard", __name__)
 
@@ -73,13 +114,12 @@ def onboard():
     if missing:
         return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
 
-    # Prepare payload to match your Supabase `profiles` table
     payload = {
         "age": data["age"],
         "income_range": data["income_range"],
         "investment_goal": data["investment_goal"],
         "monthly_amount": data["monthly_amount"],
-        "risk_appetite": data["risk_appetite"]
+        "risk_appetite": data["risk_appetite"],
     }
 
     try:
@@ -95,8 +135,34 @@ def fetch_onboard(profile_id):
     profile = get_profile(profile_id)
     if not profile:
         return jsonify({"error": "Profile not found"}), 404
-    return jsonify(profile)-e \n--- ./routes/__init__.py ---\n
--e \n--- ./routes/recommend.py ---\n
+    return jsonify(profile)
+
+
+@onboard_bp.route("/onboard/<int:profile_id>", methods=["DELETE"])
+def delete_onboard(profile_id):
+    success = delete_profile(profile_id)
+    if not success:
+        return jsonify({"error": "Profile not found or deletion failed"}), 404
+    return jsonify({"status": "deleted", "profile_id": profile_id}), 200
+
+----------------------------------------
+
+
+
+========================================
+FILE: ./routes/__init__.py
+========================================
+
+
+
+----------------------------------------
+
+
+
+========================================
+FILE: ./routes/recommend.py
+========================================
+
 # backend/routes/recommend.py
 
 from flask import Blueprint, request, jsonify
@@ -116,8 +182,26 @@ def recommend():
     result = recommend_portfolio(risk, total_amount)
 
     # 3) Return full recommendation payload as JSON
-    return jsonify(result)-e \n--- ./services/__init__.py ---\n
--e \n--- ./services/market_service.py ---\n
+    return jsonify(result)
+
+----------------------------------------
+
+
+
+========================================
+FILE: ./services/__init__.py
+========================================
+
+
+
+----------------------------------------
+
+
+
+========================================
+FILE: ./services/market_service.py
+========================================
+
 import requests
 from datetime import datetime
 from .av_client import API_KEY, BASE_URL
@@ -153,7 +237,16 @@ def fetch_daily_history(symbol: str, output_size: str="compact") -> dict:
             "volume":int(vals["5. volume"])
         }
         for d, vals in ts.items()
-    }-e \n--- ./services/recommendation_service.py ---\n
+    }
+
+----------------------------------------
+
+
+
+========================================
+FILE: ./services/recommendation_service.py
+========================================
+
 # backend/services/recommendation_service.py
 
 from .market_service import get_current_price
@@ -206,16 +299,24 @@ def recommend_portfolio(risk: str, total_amount: float) -> dict:
         "risk_level": risk,
         "investment_amount": total_amount,
         "allocation": detailed
-    }-e \n--- ./services/onboarding_service.py ---\n
+    }
+
+----------------------------------------
+
+
+
+========================================
+FILE: ./services/onboarding_service.py
+========================================
+
 # backend/services/onboarding_service.py
 
 import os
 from supabase import create_client
 from dotenv import load_dotenv
 
-# Load .env so SUPABASE_URL and SUPABASE_KEY are available
+# Load environment variables for Supabase credentials
 load_dotenv()
-
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
@@ -226,14 +327,12 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 def create_profile(data: dict) -> int:
     """
     Insert an onboarding profile into Supabase and return the new record's ID.
-    Expects `data` keys to match your `profiles` table columns.
     """
-    response = supabase.table("profiles").insert(data).execute()
-    if response.error:
-        # In production you'd want better error handling/logging
-        raise Exception(f"Supabase insert error: {response.error.message}")
-    # response.data is a list of inserted rows; grab the first row's id
-    return response.data[0]["id"]
+    result = supabase.table("profiles").insert(data).execute()
+    try:
+        return result.data[0]["id"]
+    except Exception:
+        raise Exception(f"Unexpected insert response: {result}")
 
 
 def get_profile(profile_id: int) -> dict:
@@ -241,7 +340,7 @@ def get_profile(profile_id: int) -> dict:
     Retrieve a single profile by ID from Supabase.
     Returns the row dict or None if not found.
     """
-    response = (
+    result = (
         supabase
         .table("profiles")
         .select("*")
@@ -249,12 +348,37 @@ def get_profile(profile_id: int) -> dict:
         .single()
         .execute()
     )
-    if response.error:
-        return None
-    return response.data-e \n--- ./services/av_client.py ---\n
+    return result.data if getattr(result, "data", None) else None
+
+
+def delete_profile(profile_id: int) -> bool:
+    """
+    Delete a profile by ID from Supabase.
+    Returns True if a row was deleted, False otherwise.
+    """
+    result = (
+        supabase
+        .table("profiles")
+        .delete()
+        .eq("id", profile_id)
+        .execute()
+    )
+    return bool(getattr(result, "data", None))
+
+----------------------------------------
+
+
+
+========================================
+FILE: ./services/av_client.py
+========================================
+
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
 API_KEY    = os.getenv("ALPHA_VANTAGE_KEY")
 BASE_URL   = "https://www.alphavantage.co/query"
+
+----------------------------------------
+
