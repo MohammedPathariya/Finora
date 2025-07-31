@@ -25,18 +25,23 @@ if __name__ == "__main__":
 
 from flask import Flask
 from flask_cors import CORS
-
 from dotenv import load_dotenv
+
+# Load .env (SUPABASE_URL, SUPABASE_KEY, ALPHA_VANTAGE_KEY, etc.)
 load_dotenv()
 
 from routes.health import health_bp
 from routes.recommend import recommend_bp
+from routes.onboarding import onboard_bp  # new
 
 app = Flask(__name__)
 CORS(app)
 
+# Existing endpoints
 app.register_blueprint(health_bp)
 app.register_blueprint(recommend_bp)
+# New onboarding endpoint
+app.register_blueprint(onboard_bp)
 
 @app.route("/")
 def home():
@@ -52,7 +57,45 @@ health_bp = Blueprint("health", __name__)
 
 @health_bp.route("/health", methods=["GET"])
 def health():
-    return jsonify(status="ok", service="Finora backend")-e \n--- ./routes/__init__.py ---\n
+    return jsonify(status="ok", service="Finora backend")-e \n--- ./routes/onboarding.py ---\n
+# backend/routes/onboarding.py
+
+from flask import Blueprint, request, jsonify
+from services.onboarding_service import create_profile, get_profile
+
+onboard_bp = Blueprint("onboard", __name__)
+
+@onboard_bp.route("/onboard", methods=["POST"])
+def onboard():
+    data = request.get_json() or {}
+    required = ["age", "income_range", "investment_goal", "monthly_amount", "risk_appetite"]
+    missing = [f for f in required if f not in data]
+    if missing:
+        return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
+
+    # Prepare payload to match your Supabase `profiles` table
+    payload = {
+        "age": data["age"],
+        "income_range": data["income_range"],
+        "investment_goal": data["investment_goal"],
+        "monthly_amount": data["monthly_amount"],
+        "risk_appetite": data["risk_appetite"]
+    }
+
+    try:
+        profile_id = create_profile(payload)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify({"status": "ok", "profile_id": profile_id}), 201
+
+
+@onboard_bp.route("/onboard/<int:profile_id>", methods=["GET"])
+def fetch_onboard(profile_id):
+    profile = get_profile(profile_id)
+    if not profile:
+        return jsonify({"error": "Profile not found"}), 404
+    return jsonify(profile)-e \n--- ./routes/__init__.py ---\n
 -e \n--- ./routes/recommend.py ---\n
 # backend/routes/recommend.py
 
@@ -163,7 +206,52 @@ def recommend_portfolio(risk: str, total_amount: float) -> dict:
         "risk_level": risk,
         "investment_amount": total_amount,
         "allocation": detailed
-    }-e \n--- ./services/av_client.py ---\n
+    }-e \n--- ./services/onboarding_service.py ---\n
+# backend/services/onboarding_service.py
+
+import os
+from supabase import create_client
+from dotenv import load_dotenv
+
+# Load .env so SUPABASE_URL and SUPABASE_KEY are available
+load_dotenv()
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+# Initialize Supabase client
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+
+def create_profile(data: dict) -> int:
+    """
+    Insert an onboarding profile into Supabase and return the new record's ID.
+    Expects `data` keys to match your `profiles` table columns.
+    """
+    response = supabase.table("profiles").insert(data).execute()
+    if response.error:
+        # In production you'd want better error handling/logging
+        raise Exception(f"Supabase insert error: {response.error.message}")
+    # response.data is a list of inserted rows; grab the first row's id
+    return response.data[0]["id"]
+
+
+def get_profile(profile_id: int) -> dict:
+    """
+    Retrieve a single profile by ID from Supabase.
+    Returns the row dict or None if not found.
+    """
+    response = (
+        supabase
+        .table("profiles")
+        .select("*")
+        .eq("id", profile_id)
+        .single()
+        .execute()
+    )
+    if response.error:
+        return None
+    return response.data-e \n--- ./services/av_client.py ---\n
 import os
 from dotenv import load_dotenv
 

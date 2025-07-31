@@ -2,18 +2,23 @@
 
 from flask import Flask
 from flask_cors import CORS
-
 from dotenv import load_dotenv
+
+# Load .env (SUPABASE_URL, SUPABASE_KEY, ALPHA_VANTAGE_KEY, etc.)
 load_dotenv()
 
 from routes.health import health_bp
 from routes.recommend import recommend_bp
+from routes.onboarding import onboard_bp  # new
 
 app = Flask(__name__)
 CORS(app)
 
+# Existing endpoints
 app.register_blueprint(health_bp)
 app.register_blueprint(recommend_bp)
+# New onboarding endpoint
+app.register_blueprint(onboard_bp)
 
 @app.route("/")
 def home():
