@@ -1,0 +1,108 @@
+-e \n--- ./app.py ---\n
+# backend/app.py
+
+from flask import Flask
+from flask_cors import CORS
+
+from dotenv import load_dotenv
+load_dotenv()
+
+from routes.health import health_bp
+from routes.recommend import recommend_bp
+
+app = Flask(__name__)
+CORS(app)
+
+app.register_blueprint(health_bp)
+app.register_blueprint(recommend_bp)
+
+@app.route("/")
+def home():
+    return {"message": "Finora backend is running"}
+
+if __name__ == "__main__":
+    app.run(debug=True, port=5000)-e \n--- ./routes/health.py ---\n
+# backend/routes/health.py
+
+from flask import Blueprint, jsonify
+
+health_bp = Blueprint("health", __name__)
+
+@health_bp.route("/health", methods=["GET"])
+def health():
+    return jsonify(status="ok", service="Finora backend")-e \n--- ./routes/__init__.py ---\n
+-e \n--- ./routes/recommend.py ---\n
+# backend/routes/recommend.py
+
+from flask import Blueprint, request, jsonify
+from services.recommendation_service import recommend_portfolio
+from services.stock_service import get_current_price
+
+recommend_bp = Blueprint("recommend", __name__)
+
+@recommend_bp.route("/recommend", methods=["POST"])
+def recommend():
+    data = request.get_json() or {}
+
+    # 1) Parse inputs
+    risk = data.get("risk_level", "medium")
+    total_amount = float(data.get("investment_amount", 0))
+
+    # 2) Get percentage allocation
+    pct_alloc = recommend_portfolio(risk)
+
+    # 3) Build detailed allocation
+    detailed = {}
+    for ticker, pct in pct_alloc.items():
+        dollar_amt = round(total_amount * (pct / 100), 2)
+        price = get_current_price(ticker)
+        shares = round(dollar_amt / price, 4) if price > 0 else 0
+
+        detailed[ticker] = {
+            "percentage": pct,
+            "dollar_amount": dollar_amt,
+            "price": price,
+            "shares": shares
+        }
+
+    return jsonify({
+        "risk_level": risk,
+        "investment_amount": total_amount,
+        "allocation": detailed
+    })-e \n--- ./services/stock_service.py ---\n
+# backend/services/stock_service.py
+
+import os, requests
+
+API_KEY = os.getenv("ALPHA_VANTAGE_KEY")
+BASE_URL = "https://www.alphavantage.co/query"
+
+def get_current_price(symbol: str) -> float:
+    """Fetch latest price for a ticker via Alpha Vantage."""
+    params = {
+        "function": "GLOBAL_QUOTE",
+        "symbol": symbol,
+        "apikey": API_KEY
+    }
+    data = requests.get(BASE_URL, params=params).json()
+    quote = data.get("Global Quote", {})
+    # sometimes keys include leading/trailing spaces, so:
+    price = quote.get("05. price") or quote.get("5. price")
+    return float(price) if price else 0.0-e \n--- ./services/__init__.py ---\n
+-e \n--- ./services/recommendation_service.py ---\n
+# backend/services/recommendation_service.py
+
+def recommend_portfolio(risk: str) -> dict:
+    """
+    Map a user’s risk level to a simple ETF allocation.
+    risk: "low", "medium", or "high"
+    """
+    if risk == "low":
+        return {"BND": 70, "VTI": 20, "SHY": 10}
+    if risk == "medium":
+        return {"VTI": 50, "QQQ": 30, "BND": 20}
+    if risk == "high":
+        return {"QQQ": 60, "VTI": 30, "SPY": 10}
+
+    # Fallback if no recognized risk
+    return {"VTI": 100}
