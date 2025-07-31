@@ -1,10 +1,11 @@
+# backend/services/onboarding_service.py
+
 import os
 from supabase import create_client
 from dotenv import load_dotenv
 
-# Load .env so SUPABASE_URL and SUPABASE_KEY are available
+# Load environment variables for Supabase credentials
 load_dotenv()
-
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
@@ -15,20 +16,12 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 def create_profile(data: dict) -> int:
     """
     Insert an onboarding profile into Supabase and return the new record's ID.
-    Expects `data` keys to match your `profiles` table columns.
     """
+    result = supabase.table("profiles").insert(data).execute()
     try:
-        result = supabase.table("profiles").insert(data).execute()
-    except Exception as exc:
-        raise Exception(f"Supabase insert failed: {exc}")
-
-    # The `result.data` should be a list of inserted rows
-    try:
-        new_id = result.data[0]["id"]
+        return result.data[0]["id"]
     except Exception:
-        raise Exception(f"Unexpected Supabase response format: {result}")
-
-    return new_id
+        raise Exception(f"Unexpected insert response: {result}")
 
 
 def get_profile(profile_id: int) -> dict:
@@ -36,21 +29,27 @@ def get_profile(profile_id: int) -> dict:
     Retrieve a single profile by ID from Supabase.
     Returns the row dict or None if not found.
     """
-    try:
-        result = (
-            supabase
-            .table("profiles")
-            .select("*")
-            .eq("id", profile_id)
-            .single()
-            .execute()
-        )
-    except Exception as exc:
-        # Could log exc here
-        return None
+    result = (
+        supabase
+        .table("profiles")
+        .select("*")
+        .eq("id", profile_id)
+        .single()
+        .execute()
+    )
+    return result.data if getattr(result, "data", None) else None
 
-    # If nothing was returned, data will be None or empty
-    if not getattr(result, "data", None):
-        return None
 
-    return result.data
+def delete_profile(profile_id: int) -> bool:
+    """
+    Delete a profile by ID from Supabase.
+    Returns True if a row was deleted, False otherwise.
+    """
+    result = (
+        supabase
+        .table("profiles")
+        .delete()
+        .eq("id", profile_id)
+        .execute()
+    )
+    return bool(getattr(result, "data", None))

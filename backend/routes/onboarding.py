@@ -1,5 +1,7 @@
+# backend/routes/onboarding.py
+
 from flask import Blueprint, request, jsonify
-from services.onboarding_service import create_profile, get_profile
+from services.onboarding_service import create_profile, get_profile, delete_profile
 
 onboard_bp = Blueprint("onboard", __name__)
 
@@ -33,3 +35,11 @@ def fetch_onboard(profile_id):
     if not profile:
         return jsonify({"error": "Profile not found"}), 404
     return jsonify(profile)
+
+
+@onboard_bp.route("/onboard/<int:profile_id>", methods=["DELETE"])
+def delete_onboard(profile_id):
+    success = delete_profile(profile_id)
+    if not success:
+        return jsonify({"error": "Profile not found or deletion failed"}), 404
+    return jsonify({"status": "deleted", "profile_id": profile_id}), 200
