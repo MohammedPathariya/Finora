@@ -1,46 +1,6 @@
 
 
 ========================================
-FILE: ./scripts/__init__.py
-========================================
-
-
-
-----------------------------------------
-
-
-
-========================================
-FILE: ./scripts/test_market.py
-========================================
-
-#!/usr/bin/env python
-
-from services.market_service import fetch_quote, fetch_daily_history
-
-def main():
-    tickers = ["VTI", "QQQ", "BND"]
-    print("=== Latest Quotes ===")
-    for t in tickers:
-        price = fetch_quote(t)
-        print(f"{t}: ${price:.2f}")
-
-    print("\n=== Recent History (last 5 days for VTI) ===")
-    hist = fetch_daily_history("VTI", output_size="compact")
-    # sort dates descending and pick top 5
-    recent = sorted(hist.items(), reverse=True)[:5]
-    for date, data in recent:
-        print(f"{date} → close: ${data['close']:.2f}, volume: {data['volume']}")
-
-if __name__ == "__main__":
-    main()
-
-
-----------------------------------------
-
-
-
-========================================
 FILE: ./app.py
 ========================================
 
@@ -55,7 +15,8 @@ load_dotenv()
 
 from routes.health import health_bp
 from routes.recommend import recommend_bp
-from routes.onboarding import onboard_bp  # new
+from routes.onboarding import onboard_bp
+from routes.chat import chat_bp
 
 app = Flask(__name__)
 CORS(app)
@@ -63,8 +24,8 @@ CORS(app)
 # Existing endpoints
 app.register_blueprint(health_bp)
 app.register_blueprint(recommend_bp)
-# New onboarding endpoint
 app.register_blueprint(onboard_bp)
+app.register_blueprint(chat_bp)
 
 @app.route("/")
 def home():
@@ -189,10 +150,85 @@ def recommend():
 
 
 ========================================
+FILE: ./routes/chat.py
+========================================
+
+# backend/routes/chat.py
+
+from flask import Blueprint, request, jsonify
+from services.llm_service import chat_with_model
+
+chat_bp = Blueprint("chat", __name__)
+
+@chat_bp.route("/chat", methods=["POST"])
+def chat():
+    data = request.get_json() or {}
+    user_input = data.get("message")
+    if not user_input:
+        return jsonify({"error": "Missing 'message' field"}), 400
+    try:
+        reply = chat_with_model(user_input)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    return jsonify({"reply": reply})
+
+----------------------------------------
+
+
+
+========================================
 FILE: ./services/__init__.py
 ========================================
 
 
+
+----------------------------------------
+
+
+
+========================================
+FILE: ./services/llm_service.py
+========================================
+
+# backend/services/llm_service.py
+
+import os
+from openai import OpenAI
+from dotenv import load_dotenv
+
+# Load .env so OPENAI_API_KEY is available
+load_dotenv()
+
+# Instantiate a client (picks up OPENAI_API_KEY or you can pass api_key=...)
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+def _load_system_prompt() -> str:
+    return (
+        "You are Finora, a helpful and knowledgeable financial advisor. "
+        "Respond concisely, clearly, and professionally to user queries "
+        "about investments, ETFs, allocation, and risk management."
+    )
+
+def chat_with_model(user_message: str) -> str:
+    """
+    Send a user message to the LLM via the new v1.x interface and return its reply.
+    """
+    system_prompt = _load_system_prompt()
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user",   "content": user_message}
+    ]
+
+    # Use the new chat completion call
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=messages,
+        temperature=0.7,
+        max_tokens=500
+    )
+
+    # Extract and return the assistant’s reply text
+    return response.choices[0].message.content.strip()
 
 ----------------------------------------
 
