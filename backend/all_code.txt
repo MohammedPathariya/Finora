@@ -58,7 +58,6 @@ def health():
 
 from flask import Blueprint, request, jsonify
 from services.recommendation_service import recommend_portfolio
-from services.stock_service import get_current_price
 
 recommend_bp = Blueprint("recommend", __name__)
 
@@ -70,14 +69,87 @@ def recommend():
     risk = data.get("risk_level", "medium")
     total_amount = float(data.get("investment_amount", 0))
 
-    # 2) Get percentage allocation
-    pct_alloc = recommend_portfolio(risk)
+    # 2) Delegate recommendation logic to service
+    result = recommend_portfolio(risk, total_amount)
 
-    # 3) Build detailed allocation
+    # 3) Return full recommendation payload as JSON
+    return jsonify(result)-e \n--- ./services/__init__.py ---\n
+-e \n--- ./services/market_service.py ---\n
+import requests
+from datetime import datetime
+from .av_client import API_KEY, BASE_URL
+
+def get_current_price(symbol: str) -> float:
+    """Returns latest price via GLOBAL_QUOTE."""
+    resp = requests.get(BASE_URL, params={
+        "function": "GLOBAL_QUOTE",
+        "symbol": symbol,
+        "apikey": API_KEY
+    })
+    resp.raise_for_status()
+    data = resp.json().get("Global Quote", {})
+    price = data.get("05. price") or data.get("5. price")
+    return float(price) if price else 0.0
+
+def fetch_daily_history(symbol: str, output_size: str="compact") -> dict:
+    """Returns date→{open,high,low,close,volume} via TIME_SERIES_DAILY."""
+    resp = requests.get(BASE_URL, params={
+        "function": "TIME_SERIES_DAILY",
+        "symbol": symbol,
+        "outputsize": output_size,
+        "apikey": API_KEY
+    })
+    resp.raise_for_status()
+    ts = resp.json().get("Time Series (Daily)", {})
+    return {
+        datetime.strptime(d, "%Y-%m-%d").date(): {
+            "open":  float(vals["1. open"]),
+            "high":  float(vals["2. high"]),
+            "low":   float(vals["3. low"]),
+            "close": float(vals["4. close"]),
+            "volume":int(vals["5. volume"])
+        }
+        for d, vals in ts.items()
+    }-e \n--- ./services/recommendation_service.py ---\n
+# backend/services/recommendation_service.py
+
+from .market_service import get_current_price
+
+
+def _get_pct_alloc(risk: str) -> dict:
+    """
+    Maps a user’s risk level to a simple ETF percentage allocation.
+    """
+    if risk == "low":
+        return {"BND": 70, "VTI": 20, "SHY": 10}
+    if risk == "medium":
+        return {"VTI": 50, "QQQ": 30, "BND": 20}
+    if risk == "high":
+        return {"QQQ": 60, "VTI": 30, "SPY": 10}
+    # Fallback if no recognized risk
+    return {"VTI": 100}
+
+
+def recommend_portfolio(risk: str, total_amount: float) -> dict:
+    """
+    Builds a detailed portfolio recommendation based on risk and total investment.
+
+    Returns a dict with:
+      - risk_level (str)
+      - investment_amount (float)
+      - allocation (dict of ticker -> { percentage, dollar_amount, price, shares })
+    """
+    # 1) Get static percentage allocation
+    pct_alloc = _get_pct_alloc(risk)
+
+    # 2) Build detailed allocation
     detailed = {}
     for ticker, pct in pct_alloc.items():
+        # Dollar slice for this ticker
         dollar_amt = round(total_amount * (pct / 100), 2)
+        # Live price lookup
         price = get_current_price(ticker)
+        # Compute share count
         shares = round(dollar_amt / price, 4) if price > 0 else 0
 
         detailed[ticker] = {
@@ -87,98 +159,14 @@ def recommend():
             "shares": shares
         }
 
-    return jsonify({
+    return {
         "risk_level": risk,
         "investment_amount": total_amount,
         "allocation": detailed
-    })-e \n--- ./services/stock_service.py ---\n
-# backend/services/stock_service.py
-
-import os, requests
-
-API_KEY = os.getenv("ALPHA_VANTAGE_KEY")
-BASE_URL = "https://www.alphavantage.co/query"
-
-def get_current_price(symbol: str) -> float:
-    """Fetch latest price for a ticker via Alpha Vantage."""
-    params = {
-        "function": "GLOBAL_QUOTE",
-        "symbol": symbol,
-        "apikey": API_KEY
-    }
-    data = requests.get(BASE_URL, params=params).json()
-    quote = data.get("Global Quote", {})
-    # sometimes keys include leading/trailing spaces, so:
-    price = quote.get("05. price") or quote.get("5. price")
-    return float(price) if price else 0.0-e \n--- ./services/__init__.py ---\n
--e \n--- ./services/market_service.py ---\n
+    }-e \n--- ./services/av_client.py ---\n
 import os
-from datetime import datetime
-
-import requests
 from dotenv import load_dotenv
 
-# Load .env so ALPHA_VANTAGE_KEY is available in os.environ
 load_dotenv()
-
-API_KEY = os.getenv("ALPHA_VANTAGE_KEY")
-BASE_URL = "https://www.alphavantage.co/query"
-
-
-def fetch_quote(symbol: str) -> float:
-    """
-    Returns the latest close price for `symbol` via Alpha Vantage GLOBAL_QUOTE.
-    """
-    params = {
-        "function": "GLOBAL_QUOTE",
-        "symbol": symbol,
-        "apikey": API_KEY
-    }
-    resp = requests.get(BASE_URL, params=params)
-    resp.raise_for_status()
-    data = resp.json().get("Global Quote", {})
-    price_str = data.get("05. price") or data.get("5. price")
-    return float(price_str) if price_str else 0.0
-
-
-def fetch_daily_history(symbol: str, output_size: str = "compact") -> dict:
-    """
-    Returns a dict mapping date → { open, high, low, close, volume }.
-    output_size: "compact" (last 100 days) or "full" (full history).
-    """
-    params = {
-        "function": "TIME_SERIES_DAILY",
-        "symbol": symbol,
-        "outputsize": output_size,
-        "apikey": API_KEY
-    }
-    resp = requests.get(BASE_URL, params=params)
-    resp.raise_for_status()
-    ts = resp.json().get("Time Series (Daily)", {})
-    history = {}
-    for date_str, vals in ts.items():
-        date = datetime.strptime(date_str, "%Y-%m-%d").date()
-        history[date] = {
-            "open":   float(vals["1. open"]),
-            "high":   float(vals["2. high"]),
-            "low":    float(vals["3. low"]),
-            "close":  float(vals["4. close"]),
-            "volume": int(vals["5. volume"])
-        }
-    return history-e \n--- ./services/recommendation_service.py ---\n
-# backend/services/recommendation_service.py
-
-def recommend_portfolio(risk: str) -> dict:
-    """
-    Map a user’s risk level to a simple ETF allocation.
-    risk: "low", "medium", or "high"
-    """
-    if risk == "low":
-        return {"BND": 70, "VTI": 20, "SHY": 10}
-    if risk == "medium":
-        return {"VTI": 50, "QQQ": 30, "BND": 20}
-    if risk == "high":
-        return {"QQQ": 60, "VTI": 30, "SPY": 10}
-
-    # Fallback if no recognized risk
-    return {"VTI": 100}
+API_KEY    = os.getenv("ALPHA_VANTAGE_KEY")
+BASE_URL   = "https://www.alphavantage.co/query"
