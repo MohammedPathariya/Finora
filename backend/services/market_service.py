@@ -1,18 +1,26 @@
-import requests
+# backend/services/market_service.py
+
+import logging
 from datetime import datetime
 from .av_client import API_KEY, BASE_URL
+import requests
+
+logging.basicConfig(level=logging.DEBUG)
 
 def get_current_price(symbol: str) -> float:
-    """Returns latest price via GLOBAL_QUOTE."""
-    resp = requests.get(BASE_URL, params={
+    params = {
         "function": "GLOBAL_QUOTE",
-        "symbol": symbol,
-        "apikey": API_KEY
-    })
+        "symbol":   symbol,
+        "apikey":   API_KEY
+    }
+    resp = requests.get(BASE_URL, params=params)
     resp.raise_for_status()
-    data = resp.json().get("Global Quote", {})
-    price = data.get("05. price") or data.get("5. price")
+    data = resp.json()
+    logging.debug("AlphaVantage GLOBAL_QUOTE for %s → %s", symbol, data)
+    quote = data.get("Global Quote", {})
+    price = quote.get("05. price") or quote.get("5. price")
     return float(price) if price else 0.0
+
 
 def fetch_daily_history(symbol: str, output_size: str="compact") -> dict:
     """Returns date→{open,high,low,close,volume} via TIME_SERIES_DAILY."""
