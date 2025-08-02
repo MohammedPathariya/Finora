@@ -1,0 +1,41 @@
+.home-container {
+  max-width: 800px;
+  margin: 2rem auto;
+  padding: 0 1rem;
+  font-family: sans-serif;
+  line-height: 1.6;
+}
+
+.home-title {
+  font-size: 3rem;
+  margin-bottom: 0.5rem;
+  text-align: center;
+}
+
+.home-subtitle {
+  font-size: 1.25rem;
+  text-align: center;
+  color: #555;
+  margin-bottom: 2rem;
+}
+
+.home-section + .home-section {
+  margin-top: 2rem;
+}
+
+.home-section h2 {
+  font-size: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.home-section ul,
+.home-section ol {
+  margin-left: 1.25rem;
+}
+
+.home-footer {
+  margin-top: 3rem;
+  text-align: center;
+  color: #888;
+  font-size: 0.9rem;
+}
