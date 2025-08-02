@@ -1,0 +1,104 @@
+.button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+    border-radius: var(--radius);
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    font-weight: 500;
+    transition: all 0.2s;
+    outline: none;
+    border: 1px solid transparent;
+}
+
+.button:disabled {
+    pointer-events: none;
+    opacity: 0.5;
+}
+
+.button:focus-visible {
+    box-shadow: 0 0 0 3px var(--ring);
+}
+
+/* Variants */
+.button.variant-default {
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+}
+.button.variant-default:hover {
+    background-color: #3a3a3a; /* A slightly lighter shade for hover */
+}
+.dark .button.variant-default:hover {
+    background-color: #e0e0e0; /* A slightly darker shade for hover in dark mode */
+}
+
+
+.button.variant-destructive {
+    background-color: var(--destructive);
+    color: var(--destructive-foreground);
+}
+.button.variant-destructive:hover {
+    background-color: #b91c1c;
+}
+
+.button.variant-outline {
+    border: 1px solid var(--border);
+    background-color: var(--background);
+    color: var(--foreground);
+}
+.button.variant-outline:hover {
+    background-color: var(--accent);
+    color: var(--accent-foreground);
+}
+
+.button.variant-secondary {
+    background-color: var(--secondary);
+    color: var(--secondary-foreground);
+}
+.button.variant-secondary:hover {
+    background-color: #e4e4e7;
+}
+
+.button.variant-ghost {
+    background-color: transparent;
+}
+.button.variant-ghost:hover {
+    background-color: var(--accent);
+    color: var(--accent-foreground);
+}
+
+.button.variant-link {
+    color: var(--primary);
+    text-decoration: underline;
+    text-underline-offset: 4px;
+}
+.button.variant-link:hover {
+    text-decoration-thickness: 2px;
+}
+
+/* Sizes */
+.button.size-default {
+    height: 2.25rem;
+    padding: 0.5rem 1rem;
+}
+
+.button.size-sm {
+    height: 2rem;
+    border-radius: var(--radius);
+    padding: 0.25rem 0.75rem;
+    font-size: 0.8rem;
+}
+
+.button.size-lg {
+    height: 2.5rem;
+    border-radius: var(--radius);
+    padding: 0.5rem 1.5rem;
+}
+
+.button.size-icon {
+    height: 2.25rem;
+    width: 2.25rem;
+    border-radius: var(--radius);
+}

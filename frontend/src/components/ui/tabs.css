@@ -1,0 +1,47 @@
+.tabs-root {
+  display: flex;
+  flex-direction: column;
+}
+
+.tabs-list {
+  display: inline-flex;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem; /* rounded-xl */
+  background-color: var(--muted);
+  color: var(--muted-foreground);
+  padding: 3px;
+}
+
+.tabs-trigger {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+  border-radius: 0.6rem; /* a bit less than parent for inset effect */
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  outline: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  height: 100%;
+}
+
+.tabs-trigger:focus-visible {
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+.tabs-trigger[data-state='active'] {
+  background-color: var(--card);
+  color: var(--foreground);
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+.tabs-content {
+  margin-top: 0.5rem;
+  outline: none;
+}

@@ -1,80 +1,58 @@
-/* 1) RESET + BASE
-–––––––––––––––––––––––––––––––––––––––––––– */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-html {
-  font-size: 16px;               /* 1rem = 16px */
-  line-height: 1.5;
-}
-
 body {
-  font-family: var(--font-body);
-  background-color: var(--color-bg);
-  color: var(--color-text);
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: var(--background);
+  color: var(--foreground);
 }
 
-/* 2) DESIGN TOKENS
-–––––––––––––––––––––––––––––––––––––––––––– */
 :root {
-  /* — Fonts — */
-  --font-headings: 'Playfair Display', serif;
-  --font-body: 'Inter', sans-serif;
+  --background: #ffffff;
+  --foreground: #252525;
+  --card: #ffffff;
+  --card-foreground: #252525;
+  --popover: #ffffff;
+  --popover-foreground: #252525;
+  --primary: #030213;
+  --primary-foreground: #ffffff;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #030213;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --accent: #e9ebef;
+  --accent-foreground: #030213;
+  --destructive: #d4183d;
+  --destructive-foreground: #ffffff;
+  --border: #e4e4e7;
+  --input: #e4e4e7;
+  --ring: #a1a1aa;
 
-  /* — Colors (Old-Money Aesthetic) — */
-  --color-bg: #F5F1E8;            /* soft cream */
-  --color-text: #2E2A25;          /* dark charcoal */
-  --color-primary: #4B5D3E;       /* muted hunter green */
-  --color-accent: #B89B72;        /* antique gold */
-  --color-muted: #7A766E;         /* subtle gray-brown */
-
-  /* — Spacing Scale — */
-  --space-xs: 0.25rem;
-  --space-sm: 0.5rem;
-  --space-md: 1rem;
-  --space-lg: 2rem;
-  --space-xl: 4rem;
-
-  /* — Border Radius — */
   --radius: 0.5rem;
 }
 
-/* 3) TYPOGRAPHY SCALE
-–––––––––––––––––––––––––––––––––––––––––––– */
-h1, .h1 {
-  font-family: var(--font-headings);
-  font-size: 2.5rem;
-  margin-bottom: var(--space-md);
-  color: var(--color-primary);
-}
+.dark {
+  --background: #09090b;
+  --foreground: #fafafa;
+  --card: #09090b;
+  --card-foreground: #fafafa;
+  --popover: #09090b;
+  --popover-foreground: #fafafa;
+  --primary: #fafafa;
+  --primary-foreground: #18181b;
+  --secondary: #27272a;
+  --secondary-foreground: #fafafa;
+  --muted: #27272a;
+  --muted-foreground: #a1a1aa;
+  --accent: #27272a;
+  --accent-foreground: #fafafa;
+  --destructive: #7f1d1d;
+  --destructive-foreground: #fafafa;
+  --border: #27272a;
+  --input: #27272a;
+  --ring: #d4d4d8;
 
-h2, .h2 {
-  font-family: var(--font-headings);
-  font-size: 1.75rem;
-  margin-bottom: var(--space-sm);
-  color: var(--color-primary);
-}
-
-p, li, button, input, label {
-  font-size: 1rem;
-  margin-bottom: var(--space-sm);
-}
-
-/* 4) UTILITY CLASSES
-–––––––––––––––––––––––––––––––––––––––––––– */
-.text-center { text-align: center; }
-.mb-md       { margin-bottom: var(--space-md); }
-.btn {
-  display: inline-block;
-  padding: var(--space-sm) var(--space-md);
-  border-radius: var(--radius);
-  background-color: var(--color-accent);
-  color: var(--color-text);
-  text-decoration: none;
-  font-family: var(--font-body);
+  --radius: 0.5rem;
 }

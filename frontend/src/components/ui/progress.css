@@ -1,0 +1,16 @@
+.progress-root {
+  position: relative;
+  height: 0.5rem;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 9999px;
+  background-color: #e5e7eb; /* primary/20 equivalent */
+}
+
+.progress-indicator {
+  height: 100%;
+  width: 100%;
+  flex: 1;
+  background-color: var(--primary);
+  transition: transform 660ms cubic-bezier(0.65, 0, 0.35, 1);
+}
