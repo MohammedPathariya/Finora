@@ -1,8 +1,7 @@
+// src/App.js
 import React from 'react';
 import HomePage from './components/HomePage';
 
-function App() {
+export default function App() {
   return <HomePage />;
 }
-
-export default App;
