@@ -4,12 +4,13 @@ import { Badge } from "./ui/badge.tsx";
 import { TrendingUp, Shield, Brain, BarChart3, Users } from "lucide-react";
 import './LandingPage.css';
 
-// ... the rest of the file remains the same
+// The props interface accepts both functions from App.tsx
 interface LandingPageProps {
   onGetStarted: () => void;
+  onSkipToDashboard: () => void;
 }
 
-export function LandingPage({ onGetStarted }: LandingPageProps) {
+export function LandingPage({ onGetStarted, onSkipToDashboard }: LandingPageProps) {
   return (
     <div className="landing-page">
       {/* Header */}
@@ -22,16 +23,25 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
               </div>
               <span className="logo-text">Finora</span>
             </div>
-            <Button onClick={onGetStarted} className="get-started-btn">
-              Get Started
-            </Button>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              {/* Development-only button to skip onboarding */}
+              <Button onClick={onSkipToDashboard} variant="outline">
+                Dev: Go to Dashboard
+              </Button>
+              <Button onClick={onGetStarted} className="get-started-btn">
+                Get Started
+              </Button>
+            </div>
           </div>
         </div>
       </header>
 
       {/* Hero Section */}
       <section className="container hero-section">
-        <h1 className="hero-title">
+        <Badge className="hero-badge">
+          AI-Powered Wealth Planning
+        </Badge>
+        <h1 className="hero-title" style={{ lineHeight: 1.2 }}>
           Personalized Wealth Planning, Powered by AI
         </h1>
         <p className="hero-subtitle">
