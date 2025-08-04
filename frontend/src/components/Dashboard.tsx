@@ -16,7 +16,6 @@ import {
 import { UserData } from "./Onboarding.tsx";
 import './Dashboard.css';
 
-// ... the rest of the file remains the same
 interface DashboardProps {
   userData: UserData;
   onBack: () => void;
@@ -42,6 +41,9 @@ interface PortfolioProjection {
 
 export function Dashboard({ userData, onBack }: DashboardProps) {
   const [activeView, setActiveView] = useState("overview");
+
+  // Get the user's first name from the full name
+  const firstName = userData.name.split(' ')[0];
 
   // Mock data - in a real app, this would come from your backend/API
   const generateRecommendations = (): ETFRecommendation[] => {
@@ -227,10 +229,10 @@ export function Dashboard({ userData, onBack }: DashboardProps) {
         {/* Welcome Section */}
         <div className="welcome-section">
           <h1 className="welcome-title">
-            Your Personalized Investment Plan
+            {firstName}'s Personalized Investment Plan
           </h1>
           <p className="welcome-subtitle">
-            Based on your profile, we've created a customized portfolio designed to help you reach your financial goals.
+            Welcome back! Based on your profile, we've created a customized portfolio to help you reach your financial goals.
           </p>
         </div>
 
@@ -316,6 +318,7 @@ export function Dashboard({ userData, onBack }: DashboardProps) {
                 </CardContent>
               </Card>
 
+
               <Card>
                 <CardHeader>
                   <CardTitle className="card-title-flex">
@@ -323,30 +326,28 @@ export function Dashboard({ userData, onBack }: DashboardProps) {
                     <span>Key Insights</span>
                   </CardTitle>
                 </CardHeader>
+                {/* REPLACE THE CardContent with this new version */}
                 <CardContent>
-                    <div className="insights-list">
-                      <div className="insight-item">
-                        <div className="insight-dot dot-blue"></div>
-                        <div>
-                          <p className="insight-text-title">Diversified Approach</p>
-                          <p className="insight-text-desc">Your portfolio spans multiple asset classes to reduce risk</p>
-                        </div>
+                  <ul className="insights-list">
+                    <li className="insight-item dot-blue">
+                      <div>
+                        <p className="insight-text-title">Diversified Approach</p>
+                        <p className="insight-text-desc">Your portfolio spans multiple asset classes to reduce risk</p>
                       </div>
-                      <div className="insight-item">
-                        <div className="insight-dot dot-green"></div>
-                        <div>
-                          <p className="insight-text-title">Low Cost Strategy</p>
-                          <p className="insight-text-desc">Average expense ratio of 0.06% keeps more money working for you</p>
-                        </div>
+                    </li>
+                    <li className="insight-item dot-green">
+                      <div>
+                        <p className="insight-text-title">Low Cost Strategy</p>
+                        <p className="insight-text-desc">Average expense ratio of 0.06% keeps more money working for you</p>
                       </div>
-                      <div className="insight-item">
-                        <div className="insight-dot dot-purple"></div>
-                        <div>
-                          <p className="insight-text-title">Age-Appropriate Risk</p>
-                          <p className="insight-text-desc">Risk level matches your age and investment timeline</p>
-                        </div>
+                    </li>
+                    <li className="insight-item dot-purple">
+                      <div>
+                        <p className="insight-text-title">Age-Appropriate Risk</p>
+                        <p className="insight-text-desc">Risk level matches your age and investment timeline</p>
                       </div>
-                    </div>
+                    </li>
+                  </ul>
                 </CardContent>
               </Card>
             </div>
@@ -439,42 +440,58 @@ export function Dashboard({ userData, onBack }: DashboardProps) {
 
           <TabsContent value="education">
              <div className="education-grid">
-                <Card>
-                    <CardHeader><CardTitle>Understanding ETFs</CardTitle></CardHeader>
-                    <CardContent style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
-                        <p className="education-text">
-                        Exchange-Traded Funds (ETFs) are investment funds that trade on stock exchanges like individual stocks.
-                        They offer instant diversification by holding many different stocks or bonds.
-                        </p>
-                        <div>
-                        <h4 style={{fontWeight: 500}}>Benefits of ETFs:</h4>
-                        <ul className="education-list">
-                            <li>Low fees compared to mutual funds</li>
-                            <li>Instant diversification</li>
-                            <li>Easy to buy and sell</li>
-                            <li>Transparent holdings</li>
-                        </ul>
-                        </div>
-                    </CardContent>
+                <Card style={{ gap: '0.75rem' }}>
+                  <CardHeader>
+                    <CardTitle>Understanding ETFs</CardTitle>
+                  </CardHeader>
+                  <CardContent style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <p className="education-text">
+                      Exchange-Traded Funds (ETFs) are investment funds that trade on stock exchanges like individual stocks. They offer instant diversification by holding many different stocks or bonds.
+                    </p>
+                    <div>
+                      <h4 style={{ fontWeight: 500, marginBottom: '0.5rem' }}>Benefits of ETFs:</h4>
+                      <ul className="education-list" style={{ paddingLeft: '20px' }}>
+                        <li>Low fees compared to mutual funds</li>
+                        <li>Instant diversification</li>
+                        <li>Easy to buy and sell</li>
+                        <li>Transparent holdings</li>
+                      </ul>
+                    </div>
+                  </CardContent>
                 </Card>
+
                 <Card>
-                    <CardHeader><CardTitle>Investment Principles</CardTitle></CardHeader>
-                    <CardContent style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
-                        <div style={{display: 'flex', flexDirection: 'column', gap: '0.75rem'}}>
-                            <div>
-                                <h4 style={{fontWeight: 500}}>Diversification</h4>
-                                <p className="principles-text">Don't put all your eggs in one basket. Spread risk across different investments.</p>
-                            </div>
-                            <div>
-                                <h4 style={{fontWeight: 500}}>Time in Market</h4>
-                                <p className="principles-text">Long-term investing typically outperforms trying to time the market.</p>
-                            </div>
-                            <div>
-                                <h4 style={{fontWeight: 500}}>Keep Costs Low</h4>
-                                <p className="principles-text">High fees can significantly impact your returns over time.</p>
-                            </div>
+                  <CardHeader>
+                    <CardTitle>Investment Principles</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="insights-list">
+                      <li className="insight-item dot-blue">
+                        <div>
+                          <p className="insight-text-title">Diversification</p>
+                          <p className="insight-text-desc">Don't put all your eggs in one basket. Spread risk across different investments.</p>
                         </div>
-                    </CardContent>
+                      </li>
+                      <li className="insight-item dot-green">
+                        <div>
+                          <p className="insight-text-title">Time in Market</p>
+                          <p className="insight-text-desc">Focus on time in the market, not timing it. Patient investing yields better results.</p>
+                        </div>
+                      </li>
+                      <li className="insight-item dot-purple">
+                        <div>
+                          <p className="insight-text-title">Keep Costs Low</p>
+                          <p className="insight-text-desc">High fees are a drag on performance. Prioritize low-cost funds to maximize returns.</p>
+                        </div>
+                      </li>
+                      <li className="insight-item dot-orange">
+                        <div>
+                          <p className="insight-text-title">Invest Consistently</p>
+                          <p className="insight-text-desc">Make investing a regular habit. This discipline is the key to long-term growth.</p>
+                        </div>
+                      </li>
+                    </ul>
+                  </CardContent>
                 </Card>
             </div>
           </TabsContent>

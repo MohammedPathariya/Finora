@@ -38,9 +38,6 @@ export function LandingPage({ onGetStarted, onSkipToDashboard }: LandingPageProp
 
       {/* Hero Section */}
       <section className="container hero-section">
-        <Badge className="hero-badge">
-          AI-Powered Wealth Planning
-        </Badge>
         <h1 className="hero-title" style={{ lineHeight: 1.2 }}>
           Personalized Wealth Planning, Powered by AI
         </h1>
