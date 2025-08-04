@@ -112,3 +112,9 @@
   width: 1rem;
   height: 1rem;
 }
+
+.error-text {
+  color: #dc2626; /* red-600 */
+  font-size: 0.875rem; /* text-sm */
+  margin-top: 0.5rem;
+}

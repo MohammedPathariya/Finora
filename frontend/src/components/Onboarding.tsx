@@ -9,13 +9,13 @@ import { Progress } from "./ui/progress.tsx";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import './Onboarding.css';
 
-// ... the rest of the file remains the same
 interface OnboardingProps {
   onComplete: (userData: UserData) => void;
   onBack: () => void;
 }
 
 export interface UserData {
+  name: string;
   age: number;
   income: number;
   investmentAmount: number;
@@ -25,24 +25,115 @@ export interface UserData {
   experience: string;
 }
 
+const getIncomeRange = (income: number): string => {
+    if (income < 50000) return "Less than $50,000";
+    if (income >= 50000 && income < 100000) return "$50,000 - $99,999";
+    if (income >= 100000 && income < 200000) return "$100,000 - $199,999";
+    return "$200,000 or more";
+};
+
 export function Onboarding({ onComplete, onBack }: OnboardingProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [userData, setUserData] = useState<Partial<UserData>>({
     investmentGoals: []
   });
 
-  const totalSteps = 6;
+  const [isLoading, setIsLoading] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
+  const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
+
+  const totalSteps = 7;
   const progress = ((currentStep + 1) / totalSteps) * 100;
+  
+  const validateStep = (step: number): boolean => {
+    const newErrors: { [key: string]: string } = {};
+    let isValid = true;
+    switch (step) {
+      case 0:
+        if (!userData.name || userData.name.trim().length < 2) {
+          newErrors.name = "Please enter a valid name.";
+          isValid = false;
+        }
+        break;
+      case 1:
+        if (!userData.age) {
+          newErrors.age = "Age is required.";
+          isValid = false;
+        } else if (userData.age < 18 || userData.age > 100) {
+          newErrors.age = "Please enter an age between 18 and 100.";
+          isValid = false;
+        }
+        break;
+      case 2:
+        if (userData.income === undefined || userData.income === null) {
+            newErrors.income = "Annual income is required.";
+            isValid = false;
+        } else if (userData.income < 0) {
+            newErrors.income = "Income cannot be negative.";
+            isValid = false;
+        }
+        break;
+      case 3:
+        if (!userData.investmentAmount) {
+            newErrors.investmentAmount = "Investment amount is required.";
+            isValid = false;
+        } else if (userData.investmentAmount <= 0) {
+            newErrors.investmentAmount = "Investment amount must be greater than zero.";
+            isValid = false;
+        }
+        break;
+    }
+    setFormErrors(newErrors);
+    return isValid;
+  };
+
+  const submitOnboardingData = async () => {
+    setIsLoading(true);
+    setApiError(null);
+
+    // This payload now perfectly matches the final database schema and backend API
+    const payload = {
+      name: userData.name,
+      age: userData.age,
+      income_range: getIncomeRange(userData.income!),
+      investment_amount: userData.investmentAmount,
+      time_horizon: userData.timeHorizon,
+      risk_tolerance: userData.riskTolerance,
+      investment_goals: userData.investmentGoals?.join(', '),
+      experience: userData.experience,
+    };
+
+    try {
+      const response = await fetch('http://127.0.0.1:5000/onboard', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Something went wrong on the server.');
+      }
+      onComplete(userData as UserData);
+    } catch (err: any) {
+      console.error("Failed to submit onboarding data:", err);
+      setApiError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleNext = () => {
-    if (currentStep < totalSteps - 1) {
-      setCurrentStep(currentStep + 1);
-    } else {
-      onComplete(userData as UserData);
+    if (validateStep(currentStep)) {
+      if (currentStep < totalSteps - 1) {
+        setCurrentStep(currentStep + 1);
+      } else {
+        submitOnboardingData();
+      }
     }
   };
 
   const handlePrevious = () => {
+    setFormErrors({});
     if (currentStep > 0) {
       setCurrentStep(currentStep - 1);
     } else {
@@ -52,12 +143,13 @@ export function Onboarding({ onComplete, onBack }: OnboardingProps) {
 
   const isStepValid = () => {
     switch (currentStep) {
-      case 0: return userData.age && userData.age > 0;
-      case 1: return userData.income && userData.income > 0;
-      case 2: return userData.investmentAmount && userData.investmentAmount > 0;
-      case 3: return !!userData.timeHorizon;
-      case 4: return !!userData.riskTolerance;
-      case 5: return userData.investmentGoals && userData.investmentGoals.length > 0 && !!userData.experience;
+      case 0: return userData.name && userData.name.trim().length >= 2;
+      case 1: return userData.age && userData.age >= 18 && userData.age <= 100;
+      case 2: return userData.income !== undefined && userData.income >= 0;
+      case 3: return userData.investmentAmount && userData.investmentAmount > 0;
+      case 4: return !!userData.timeHorizon;
+      case 5: return !!userData.riskTolerance;
+      case 6: return userData.investmentGoals && userData.investmentGoals.length > 0 && !!userData.experience;
       default: return false;
     }
   };
@@ -72,6 +164,7 @@ export function Onboarding({ onComplete, onBack }: OnboardingProps) {
   };
   
   const stepTitles = [
+    "Welcome to Finora!",
     "Let's start with the basics",
     "Tell us about your income",
     "How much to invest?",
@@ -81,6 +174,7 @@ export function Onboarding({ onComplete, onBack }: OnboardingProps) {
   ];
 
   const stepDescriptions = [
+    "Let's get started by learning a bit about you. What should we call you?",
     "We need some basic information to personalize your investment plan",
     "Understanding your income helps us recommend appropriate investment amounts",
     "Start with any amount - you can always add more later",
@@ -89,50 +183,69 @@ export function Onboarding({ onComplete, onBack }: OnboardingProps) {
     "Let's understand what you're investing for"
   ];
 
-
   const renderStep = () => {
     switch (currentStep) {
       case 0:
         return (
           <div className="step-content">
             <div>
-              <Label htmlFor="age" className="input-label">What's your age?</Label>
+              <Label htmlFor="name" className="input-label">What is your full name?</Label>
+              <Input
+                id="name"
+                type="text"
+                placeholder="Enter your name"
+                value={userData.name || ''}
+                onChange={(e) => setUserData({ ...userData, name: e.target.value })}
+                className="input-field"
+              />
+              {formErrors.name && <p className="error-text">{formErrors.name}</p>}
+            </div>
+            <p className="helper-text">
+              We'll use this to personalize your experience.
+            </p>
+          </div>
+        );
+      case 1:
+        return (
+          <div className="step-content">
+            <div>
+              <Label htmlFor="age" className="input-label">How old are you, {userData.name}?</Label>
               <Input
                 id="age"
                 type="number"
                 placeholder="Enter your age"
                 value={userData.age || ''}
-                onChange={(e) => setUserData({ ...userData, age: parseInt(e.target.value) || 0 })}
+                onChange={(e) => setUserData({ ...userData, age: parseInt(e.target.value) || undefined })}
                 className="input-field"
               />
+              {formErrors.age && <p className="error-text">{formErrors.age}</p>}
             </div>
             <p className="helper-text">
-              Your age helps us determine the appropriate investment timeline and risk level for your portfolio.
+              Your age helps us determine the appropriate investment timeline.
             </p>
           </div>
         );
-
-      case 1:
+      case 2:
         return (
-          <div className="step-content">
+            <div className="step-content">
             <div>
               <Label htmlFor="income" className="input-label">What's your annual income?</Label>
               <Input
                 id="income"
                 type="number"
-                placeholder="Enter your annual income"
+                placeholder="Enter your annual income in USD"
                 value={userData.income || ''}
-                onChange={(e) => setUserData({ ...userData, income: parseInt(e.target.value) || 0 })}
+                onChange={(e) => setUserData({ ...userData, income: parseInt(e.target.value) || undefined })}
                 className="input-field"
               />
+              {formErrors.income && <p className="error-text">{formErrors.income}</p>}
             </div>
             <p className="helper-text">
-              This helps us understand your financial capacity and recommend appropriate investment amounts.
+              This helps us understand your financial capacity. We'll store this as a range to protect your privacy.
             </p>
           </div>
         );
-
-      case 2:
+      case 3:
         return (
           <div className="step-content">
             <div>
@@ -142,17 +255,17 @@ export function Onboarding({ onComplete, onBack }: OnboardingProps) {
                 type="number"
                 placeholder="Enter initial investment amount"
                 value={userData.investmentAmount || ''}
-                onChange={(e) => setUserData({ ...userData, investmentAmount: parseInt(e.target.value) || 0 })}
+                onChange={(e) => setUserData({ ...userData, investmentAmount: parseInt(e.target.value) || undefined })}
                 className="input-field"
               />
+              {formErrors.investmentAmount && <p className="error-text">{formErrors.investmentAmount}</p>}
             </div>
             <p className="helper-text">
-              Start with any amount you're comfortable with. You can always invest more later.
+              Start with any amount you're comfortable with.
             </p>
           </div>
         );
-
-      case 3:
+      case 4:
         return (
           <div className="step-content">
             <Label className="input-label">What's your investment timeline?</Label>
@@ -167,11 +280,11 @@ export function Onboarding({ onComplete, onBack }: OnboardingProps) {
               </SelectContent>
             </Select>
             <p className="helper-text">
-              Your timeline affects the types of investments we'll recommend and the level of risk we suggest.
+              Longer timelines generally allow for higher-risk, higher-growth strategies.
             </p>
           </div>
         );
-      case 4:
+      case 5:
         return (
           <div className="step-content">
             <Label className="input-label">How do you feel about investment risk?</Label>
@@ -204,7 +317,7 @@ export function Onboarding({ onComplete, onBack }: OnboardingProps) {
             </RadioGroup>
           </div>
         );
-      case 5:
+      case 6:
         return (
           <div className="step-content" style={{gap: '1.5rem'}}>
             <div className="step-content">
@@ -267,22 +380,33 @@ export function Onboarding({ onComplete, onBack }: OnboardingProps) {
         </CardHeader>
         <CardContent style={{display: 'flex', flexDirection: 'column', gap: '1.5rem'}}>
           {renderStep()}
-          
+          {apiError && (
+            <div className="error-text" style={{textAlign: 'center'}}>
+              API Error: {apiError}
+            </div>
+          )}
           <div className="onboarding-footer">
             <Button
               variant="outline"
               onClick={handlePrevious}
               className="nav-button"
+              disabled={isLoading}
             >
               <ArrowLeft className="arrow-icon" />
               <span>Back</span>
             </Button>
             <Button
               onClick={handleNext}
-              disabled={!isStepValid()}
+              disabled={!isStepValid() || isLoading}
               className="nav-button nav-button-next"
             >
-              <span>{currentStep === totalSteps - 1 ? 'Generate My Plan' : 'Next'}</span>
+              <span>
+                {isLoading 
+                  ? 'Saving...' 
+                  : currentStep === totalSteps - 1 
+                  ? 'Generate My Plan' 
+                  : 'Next'}
+              </span>
               <ArrowRight className="arrow-icon" />
             </Button>
           </div>
