@@ -20,35 +20,70 @@
   text-align: center;
 }
 
+/* NEW: This container enforces a consistent height for each step */
+.step-container {
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
 .step-content {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem; /* Reduced gap since the label has margin now */
 }
 
 .input-label {
-    margin-bottom: 0.5rem;
+  display: block; /* Ensures it takes its own line */
+  margin-bottom: 0.75rem; /* Adds space below the question */
+  font-weight: 500;
+  font-size: 1rem; /* Slightly larger question text */
 }
 
-.input-field {
-  margin-top: 0.5rem;
+/* NEW: Consistent styling for all answer areas */
+.input-field,
+.select-trigger {
+  width: 100%;
+  max-width: 400px; /* Prevents fields from being too wide */
 }
 
 .helper-text {
   font-size: 0.875rem; /* text-sm */
   color: #4b5563; /* text-gray-600 */
+  margin-top: 0.5rem;
+  max-width: 400px;
 }
 
-.radio-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem; /* space-y-3 */
+/* --- Radio Group and Checkbox Styling --- */
+.radio-group,
+.goals-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem; /* Increased base gap */
 }
 
-.radio-item-container {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem; /* space-x-2 */
+/* NEW: Increased spacing for risk tolerance options */
+.risk-group {
+    gap: 1.5rem;
+}
+
+.radio-item-container,
+.goal-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: background-color 0.2s;
+}
+
+.radio-item-container:has([data-state="checked"]),
+.goal-label:has(input:checked) {
+    background-color: #eff6ff;
+    border-color: #3b82f6;
 }
 
 .radio-label {
@@ -60,29 +95,19 @@
 }
 
 .radio-label-description {
-    font-size: 0.875rem; /* text-sm */
-    color: #4b5563; /* text-gray-600 */
-}
-
-
-.goals-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.75rem; /* gap-3 */
-}
-
-.goal-label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    cursor: pointer;
+    font-size: 0.875rem;
+    color: #4b5563;
 }
 
 .goal-checkbox {
+    width: 1rem;
+    height: 1rem;
     border-radius: 0.25rem;
-    border-color: #d1d5db; /* border-gray-300 */
+    border-color: #d1d5db;
 }
 
+
+/* --- Footer and Error Styling --- */
 .onboarding-footer {
   display: flex;
   justify-content: space-between;

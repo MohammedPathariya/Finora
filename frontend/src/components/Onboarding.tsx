@@ -42,7 +42,7 @@ export function Onboarding({ onComplete, onBack }: OnboardingProps) {
   const [apiError, setApiError] = useState<string | null>(null);
   const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
 
-  const totalSteps = 7;
+  const totalSteps = 8;
   const progress = ((currentStep + 1) / totalSteps) * 100;
   
   const validateStep = (step: number): boolean => {
@@ -82,6 +82,18 @@ export function Onboarding({ onComplete, onBack }: OnboardingProps) {
             isValid = false;
         }
         break;
+      case 6:
+        if (!userData.investmentGoals || userData.investmentGoals.length === 0) {
+          newErrors.investmentGoals = "Please select at least one goal.";
+          isValid = false;
+        }
+        break;
+      case 7:
+        if (!userData.experience) {
+          newErrors.experience = "Please select your experience level.";
+          isValid = false;
+        }
+        break;
     }
     setFormErrors(newErrors);
     return isValid;
@@ -91,7 +103,6 @@ export function Onboarding({ onComplete, onBack }: OnboardingProps) {
     setIsLoading(true);
     setApiError(null);
 
-    // This payload now perfectly matches the final database schema and backend API
     const payload = {
       name: userData.name,
       age: userData.age,
@@ -149,7 +160,8 @@ export function Onboarding({ onComplete, onBack }: OnboardingProps) {
       case 3: return userData.investmentAmount && userData.investmentAmount > 0;
       case 4: return !!userData.timeHorizon;
       case 5: return !!userData.riskTolerance;
-      case 6: return userData.investmentGoals && userData.investmentGoals.length > 0 && !!userData.experience;
+      case 6: return userData.investmentGoals && userData.investmentGoals.length > 0;
+      case 7: return !!userData.experience;
       default: return false;
     }
   };
@@ -170,199 +182,186 @@ export function Onboarding({ onComplete, onBack }: OnboardingProps) {
     "How much to invest?",
     "What's your timeline?",
     "Risk assessment",
-    "Goals and experience"
+    "What are your investment goals?",
+    "What's your investment experience?"
   ];
 
   const stepDescriptions = [
-    "Let's get started by learning a bit about you. What should we call you?",
-    "We need some basic information to personalize your investment plan",
-    "Understanding your income helps us recommend appropriate investment amounts",
-    "Start with any amount - you can always add more later",
-    "Your investment timeline affects our recommendations",
-    "Help us understand your comfort level with market fluctuations",
-    "Let's understand what you're investing for"
+    "Let's get started by learning a bit about you.",
+    "This helps us personalize your investment plan.",
+    "This helps us recommend appropriate investment amounts.",
+    "You can start with any amount you're comfortable with.",
+    "Your investment timeline affects our recommendations.",
+    "This helps us understand your comfort with market changes.",
+    "Select all that apply to help us tailor your plan.",
+    "This helps us adjust our guidance for you."
   ];
 
-  const renderStep = () => {
-    switch (currentStep) {
-      case 0:
-        return (
-          <div className="step-content">
-            <div>
-              <Label htmlFor="name" className="input-label">What is your full name?</Label>
-              <Input
-                id="name"
-                type="text"
-                placeholder="Enter your name"
-                value={userData.name || ''}
-                onChange={(e) => setUserData({ ...userData, name: e.target.value })}
-                className="input-field"
-              />
-              {formErrors.name && <p className="error-text">{formErrors.name}</p>}
-            </div>
-            <p className="helper-text">
-              We'll use this to personalize your experience.
-            </p>
-          </div>
-        );
-      case 1:
-        return (
-          <div className="step-content">
-            <div>
-              <Label htmlFor="age" className="input-label">How old are you, {userData.name}?</Label>
-              <Input
-                id="age"
-                type="number"
-                placeholder="Enter your age"
-                value={userData.age || ''}
-                onChange={(e) => setUserData({ ...userData, age: parseInt(e.target.value) || undefined })}
-                className="input-field"
-              />
-              {formErrors.age && <p className="error-text">{formErrors.age}</p>}
-            </div>
-            <p className="helper-text">
-              Your age helps us determine the appropriate investment timeline.
-            </p>
-          </div>
-        );
-      case 2:
-        return (
-            <div className="step-content">
-            <div>
-              <Label htmlFor="income" className="input-label">What's your annual income?</Label>
-              <Input
-                id="income"
-                type="number"
-                placeholder="Enter your annual income in USD"
-                value={userData.income || ''}
-                onChange={(e) => setUserData({ ...userData, income: parseInt(e.target.value) || undefined })}
-                className="input-field"
-              />
-              {formErrors.income && <p className="error-text">{formErrors.income}</p>}
-            </div>
-            <p className="helper-text">
-              This helps us understand your financial capacity. We'll store this as a range to protect your privacy.
-            </p>
-          </div>
-        );
-      case 3:
-        return (
-          <div className="step-content">
-            <div>
-              <Label htmlFor="investment" className="input-label">How much would you like to invest initially?</Label>
-              <Input
-                id="investment"
-                type="number"
-                placeholder="Enter initial investment amount"
-                value={userData.investmentAmount || ''}
-                onChange={(e) => setUserData({ ...userData, investmentAmount: parseInt(e.target.value) || undefined })}
-                className="input-field"
-              />
-              {formErrors.investmentAmount && <p className="error-text">{formErrors.investmentAmount}</p>}
-            </div>
-            <p className="helper-text">
-              Start with any amount you're comfortable with.
-            </p>
-          </div>
-        );
-      case 4:
-        return (
-          <div className="step-content">
-            <Label className="input-label">What's your investment timeline?</Label>
-            <Select value={userData.timeHorizon} onValueChange={(value) => setUserData({ ...userData, timeHorizon: value })}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select your investment timeline" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="short">Short-term (1-3 years)</SelectItem>
-                <SelectItem value="medium">Medium-term (3-10 years)</SelectItem>
-                <SelectItem value="long">Long-term (10+ years)</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="helper-text">
-              Longer timelines generally allow for higher-risk, higher-growth strategies.
-            </p>
-          </div>
-        );
-      case 5:
-        return (
-          <div className="step-content">
-            <Label className="input-label">How do you feel about investment risk?</Label>
-            <RadioGroup
-              value={userData.riskTolerance}
-              onValueChange={(value) => setUserData({ ...userData, riskTolerance: value })}
-              className="radio-group"
-            >
-              <div className="radio-item-container">
-                <RadioGroupItem value="conservative" id="conservative" />
-                <Label htmlFor="conservative" className="radio-label">
-                  <div className="radio-label-title">Conservative</div>
-                  <div className="radio-label-description">I prefer steady, predictable returns with minimal risk</div>
-                </Label>
+  const renderStep = () => (
+    <div className="step-container">
+      {(() => {
+        switch (currentStep) {
+          case 0:
+            return (
+              <div className="step-content">
+                <Label htmlFor="name" className="input-label">What is your full name?</Label>
+                <Input
+                  id="name"
+                  type="text"
+                  placeholder="Enter your name"
+                  value={userData.name || ''}
+                  onChange={(e) => setUserData({ ...userData, name: e.target.value })}
+                  className="input-field"
+                />
+                {formErrors.name && <p className="error-text">{formErrors.name}</p>}
+                <p className="helper-text"> We'll use this to personalize your experience.</p>
               </div>
-              <div className="radio-item-container">
-                <RadioGroupItem value="moderate" id="moderate" />
-                <Label htmlFor="moderate" className="radio-label">
-                  <div className="radio-label-title">Moderate</div>
-                  <div className="radio-label-description">I'm comfortable with some ups and downs for potentially higher returns</div>
-                </Label>
+            );
+          case 1:
+            return (
+              <div className="step-content">
+                <Label htmlFor="age" className="input-label">How old are you, {userData.name || 'there'}?</Label>
+                <Input
+                  id="age"
+                  type="number"
+                  placeholder="Enter your age"
+                  value={userData.age || ''}
+                  onChange={(e) => setUserData({ ...userData, age: parseInt(e.target.value) || undefined })}
+                  className="input-field"
+                />
+                {formErrors.age && <p className="error-text">{formErrors.age}</p>}
+                <p className="helper-text">Please enter an age between 18 and 100.</p>
               </div>
-              <div className="radio-item-container">
-                <RadioGroupItem value="aggressive" id="aggressive" />
-                <Label htmlFor="aggressive" className="radio-label">
-                  <div className="radio-label-title">Aggressive</div>
-                  <div className="radio-label-description">I'm willing to accept significant volatility for maximum growth potential</div>
-                </Label>
+            );
+          case 2:
+            return (
+                <div className="step-content">
+                <Label htmlFor="income" className="input-label">What's your approximate annual income?</Label>
+                <Input
+                  id="income"
+                  type="number"
+                  placeholder="e.g., 75000"
+                  value={userData.income || ''}
+                  onChange={(e) => setUserData({ ...userData, income: parseInt(e.target.value) || undefined })}
+                  className="input-field"
+                />
+                {formErrors.income && <p className="error-text">{formErrors.income}</p>}
+                <p className="helper-text">Please enter a non-negative value. We store this as a range to protect your privacy.</p>
               </div>
-            </RadioGroup>
-          </div>
-        );
-      case 6:
-        return (
-          <div className="step-content" style={{gap: '1.5rem'}}>
-            <div className="step-content">
-              <Label className="input-label">What are your investment goals? (Select all that apply)</Label>
-              <div className="goals-grid">
-                {[
-                  'Retirement planning',
-                  'Emergency fund',
-                  'Buying a home',
-                  'Education funding',
-                  'General wealth building',
-                  'Short-term savings goals'
-                ].map((goal) => (
-                  <label key={goal} className="goal-label">
-                    <input
-                      type="checkbox"
-                      checked={userData.investmentGoals?.includes(goal) || false}
-                      onChange={(e) => updateGoals(goal, e.target.checked)}
-                      className="goal-checkbox"
-                    />
-                    <span>{goal}</span>
-                  </label>
-                ))}
+            );
+          case 3:
+            return (
+              <div className="step-content">
+                <Label htmlFor="investment" className="input-label">How much would you like to invest initially?</Label>
+                <Input
+                  id="investment"
+                  type="number"
+                  placeholder="e.g., 1000"
+                  value={userData.investmentAmount || ''}
+                  onChange={(e) => setUserData({ ...userData, investmentAmount: parseInt(e.target.value) || undefined })}
+                  className="input-field"
+                />
+                {formErrors.investmentAmount && <p className="error-text">{formErrors.investmentAmount}</p>}
+                <p className="helper-text">Start with any amount greater than zero.</p>
               </div>
-            </div>
-
-            <div className="step-content">
-              <Label className="input-label">What's your investment experience?</Label>
-              <Select value={userData.experience} onValueChange={(value) => setUserData({ ...userData, experience: value })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select your experience level" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="beginner">Beginner - I'm new to investing</SelectItem>
-                  <SelectItem value="intermediate">Intermediate - I have some experience</SelectItem>
-                  <SelectItem value="advanced">Advanced - I'm an experienced investor</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        );
-      default:
-        return null;
-    }
-  };
+            );
+          case 4:
+            return (
+              <div className="step-content">
+                <Label className="input-label">What's your investment timeline?</Label>
+                <Select value={userData.timeHorizon} onValueChange={(value) => setUserData({ ...userData, timeHorizon: value })}>
+                  <SelectTrigger className="select-trigger">
+                    <SelectValue placeholder="Select your investment timeline" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="short">Short-term (1-3 years)</SelectItem>
+                    <SelectItem value="medium">Medium-term (3-10 years)</SelectItem>
+                    <SelectItem value="long">Long-term (10+ years)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            );
+          case 5:
+            return (
+              <div className="step-content">
+                <Label className="input-label">How do you feel about investment risk?</Label>
+                <RadioGroup
+                  value={userData.riskTolerance}
+                  onValueChange={(value) => setUserData({ ...userData, riskTolerance: value })}
+                  className="radio-group risk-group"
+                >
+                  <div className="radio-item-container">
+                    <RadioGroupItem value="conservative" id="conservative" />
+                    <Label htmlFor="conservative" className="radio-label">
+                      <div className="radio-label-title">Conservative</div>
+                      <div className="radio-label-description">I prefer steady, predictable returns with minimal risk</div>
+                    </Label>
+                  </div>
+                  <div className="radio-item-container">
+                    <RadioGroupItem value="moderate" id="moderate" />
+                    <Label htmlFor="moderate" className="radio-label">
+                      <div className="radio-label-title">Moderate</div>
+                      <div className="radio-label-description">I'm comfortable with some ups and downs for potentially higher returns</div>
+                    </Label>
+                  </div>
+                  <div className="radio-item-container">
+                    <RadioGroupItem value="aggressive" id="aggressive" />
+                    <Label htmlFor="aggressive" className="radio-label">
+                      <div className="radio-label-title">Aggressive</div>
+                      <div className="radio-label-description">I'm willing to accept significant volatility for maximum growth potential</div>
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+            );
+          case 6:
+            return (
+              <div className="step-content">
+                <div className="goals-grid">
+                  {[
+                    'Retirement planning',
+                    'Emergency fund',
+                    'Buying a home',
+                    'Education funding',
+                    'General wealth building',
+                    'Short-term savings goals'
+                  ].map((goal) => (
+                    <label key={goal} className="goal-label">
+                      <input
+                        type="checkbox"
+                        checked={userData.investmentGoals?.includes(goal) || false}
+                        onChange={(e) => updateGoals(goal, e.target.checked)}
+                        className="goal-checkbox"
+                      />
+                      <span>{goal}</span>
+                    </label>
+                  ))}
+                </div>
+                {formErrors.investmentGoals && <p className="error-text">{formErrors.investmentGoals}</p>}
+              </div>
+            );
+          case 7:
+            return (
+              <div className="step-content">
+                <Select value={userData.experience} onValueChange={(value) => setUserData({ ...userData, experience: value })}>
+                  <SelectTrigger className="select-trigger">
+                    <SelectValue placeholder="Select your experience level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="beginner">Beginner - I'm new to investing</SelectItem>
+                    <SelectItem value="intermediate">Intermediate - I have some experience</SelectItem>
+                    <SelectItem value="advanced">Advanced - I'm an experienced investor</SelectItem>
+                  </SelectContent>
+                </Select>
+                {formErrors.experience && <p className="error-text">{formErrors.experience}</p>}
+              </div>
+            );
+          default:
+            return null;
+        }
+      })()}
+    </div>
+  );
 
   return (
     <div className="onboarding-container">
