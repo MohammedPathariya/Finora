@@ -31,9 +31,6 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
 
       {/* Hero Section */}
       <section className="container hero-section">
-        <Badge className="hero-badge">
-          AI-Powered Wealth Planning
-        </Badge>
         <h1 className="hero-title">
           Personalized Wealth Planning, Powered by AI
         </h1>
