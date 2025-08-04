@@ -19,6 +19,7 @@ import './Dashboard.css';
 interface DashboardProps {
   userData: UserData;
   onBack: () => void;
+  onGoHome: () => void;
 }
 
 interface ETFRecommendation {
@@ -39,7 +40,7 @@ interface PortfolioProjection {
   optimistic: number;
 }
 
-export function Dashboard({ userData, onBack }: DashboardProps) {
+export function Dashboard({ userData, onBack, onGoHome }: DashboardProps) {
   const [activeView, setActiveView] = useState("overview");
 
   // Get the user's first name from the full name
@@ -209,15 +210,12 @@ export function Dashboard({ userData, onBack }: DashboardProps) {
       <header className="dashboard-header">
         <div className="container header-content">
           <div className="header-left">
-            <Button variant="ghost" onClick={onBack}>
-              ← Back
-            </Button>
-            <div className="logo">
-              <div className="logo-icon-wrapper">
-                <TrendingUp className="logo-icon" />
-              </div>
-              <span className="logo-text">Finora</span>
+            <div className="logo" onClick={onGoHome} style={{ cursor: 'pointer' }}>
+              <img src="/logo10.png" alt="Finora Logo" style={{ height: '42px' }} />
             </div>
+            <Button variant="ghost" onClick={onBack}>
+              ← Back to Onboarding
+            </Button>
           </div>
           <Badge className="status-badge">
             Plan Generated

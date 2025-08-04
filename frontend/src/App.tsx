@@ -79,6 +79,7 @@ export default function App() {
         <Dashboard 
           userData={userData}
           onBack={handleBackToOnboarding}
+          onGoHome={handleBackToLanding}
         />
       ) : null;
     

@@ -18,10 +18,7 @@ export function LandingPage({ onGetStarted, onSkipToDashboard }: LandingPageProp
         <div className="container">
           <div className="header-content">
             <div className="logo">
-              <div className="logo-icon-wrapper">
-                <TrendingUp className="logo-icon" />
-              </div>
-              <span className="logo-text">Finora</span>
+              <img src="/logo10.png" alt="Finora Logo" style={{ height: '42px' }} />
             </div>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               {/* Development-only button to skip onboarding */}
