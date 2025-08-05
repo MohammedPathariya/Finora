@@ -8,9 +8,10 @@ import './LandingPage.css';
 interface LandingPageProps {
   onGetStarted: () => void;
   onSkipToDashboard: () => void;
+  onNavigateToMarket: () => void;
 }
 
-export function LandingPage({ onGetStarted, onSkipToDashboard }: LandingPageProps) {
+export function LandingPage({ onGetStarted, onSkipToDashboard, onNavigateToMarket }: LandingPageProps) {
   return (
     <div className="landing-page">
       {/* Header */}
@@ -21,6 +22,9 @@ export function LandingPage({ onGetStarted, onSkipToDashboard }: LandingPageProp
               <img src="/logo10.png" alt="Finora Logo" style={{ height: '42px' }} />
             </div>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <Button onClick={onNavigateToMarket} variant="ghost">
+                Market Data
+              </Button>
               {/* Development-only button to skip onboarding */}
               <Button onClick={onSkipToDashboard} variant="outline">
                 Dev: Go to Dashboard

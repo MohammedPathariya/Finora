@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { LandingPage } from './components/LandingPage.tsx';
 import { Onboarding, UserData } from './components/Onboarding.tsx';
 import { Dashboard } from './components/Dashboard.tsx';
+import { MarketDataPage } from './components/MarketDataPage.tsx';
 
-type AppState = 'landing' | 'onboarding' | 'dashboard';
+type AppState = 'landing' | 'onboarding' | 'dashboard' | 'marketData';
 
 export default function App() {
   const [currentState, setCurrentState] = useState<AppState>('landing');
@@ -27,7 +28,10 @@ export default function App() {
     setCurrentState('onboarding');
   };
 
-  // NEW: Function to fetch user #1 and skip to the dashboard
+  const handleGoToMarketData = () => {
+    setCurrentState('marketData');
+  };
+
   const handleSkipToDashboard = async () => {
     try {
       // Fetch the data from your backend for the user with id = 1
@@ -63,27 +67,18 @@ export default function App() {
 
   switch (currentState) {
     case 'landing':
-      // MODIFIED: Pass the new handler function to the LandingPage
-      return <LandingPage onGetStarted={handleGetStarted} onSkipToDashboard={handleSkipToDashboard} />;
+      return <LandingPage onGetStarted={handleGetStarted} onSkipToDashboard={handleSkipToDashboard} onNavigateToMarket={handleGoToMarketData} />;
     
     case 'onboarding':
-      return (
-        <Onboarding 
-          onComplete={handleOnboardingComplete}
-          onBack={handleBackToLanding}
-        />
-      );
+      return <Onboarding onComplete={handleOnboardingComplete} onBack={handleBackToLanding} />;
     
     case 'dashboard':
-      return userData ? (
-        <Dashboard 
-          userData={userData}
-          onBack={handleBackToOnboarding}
-          onGoHome={handleBackToLanding}
-        />
-      ) : null;
+      return userData ? <Dashboard userData={userData} onBack={handleBackToOnboarding} onGoHome={handleBackToLanding} onNavigateToMarket={handleGoToMarketData}/> : null;
+
+    case 'marketData':
+      return <MarketDataPage onBack={handleBackToLanding} />;
     
     default:
-      return <LandingPage onGetStarted={handleGetStarted} onSkipToDashboard={handleSkipToDashboard} />;
+      return <LandingPage onGetStarted={handleGetStarted} onSkipToDashboard={handleSkipToDashboard} onNavigateToMarket={handleGoToMarketData} />;
   }
 }

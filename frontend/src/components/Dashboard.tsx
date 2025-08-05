@@ -20,6 +20,7 @@ interface DashboardProps {
   userData: UserData;
   onBack: () => void;
   onGoHome: () => void;
+  onNavigateToMarket: () => void;
 }
 
 interface ETFRecommendation {
@@ -40,7 +41,7 @@ interface PortfolioProjection {
   optimistic: number;
 }
 
-export function Dashboard({ userData, onBack, onGoHome }: DashboardProps) {
+export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket }: DashboardProps) {
   const [activeView, setActiveView] = useState("overview");
 
   // Get the user's first name from the full name
@@ -215,6 +216,9 @@ export function Dashboard({ userData, onBack, onGoHome }: DashboardProps) {
             </div>
             <Button variant="ghost" onClick={onBack}>
               ← Back to Onboarding
+            </Button>
+            <Button variant="ghost" onClick={onNavigateToMarket}>
+              Market Data
             </Button>
           </div>
           <Badge className="status-badge">
