@@ -20,3 +20,31 @@
     border: 1px solid var(--destructive);
     border-radius: var(--radius);
 }
+
+/* Container for the search input */
+.toolbar-container {
+    margin-bottom: 1.5rem;
+}
+
+/* Style for the sortable table headers */
+.sortable-header {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.sortable-header:hover {
+    color: var(--foreground); /* Make it slightly darker on hover */
+}
+
+/* A subtle indicator for the sort direction arrow */
+.sort-indicator {
+    font-size: 0.7rem;
+}

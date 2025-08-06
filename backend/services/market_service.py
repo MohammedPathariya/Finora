@@ -47,7 +47,7 @@ def get_historical_data_for_period(symbol: str, days: int) -> list:
         .select('date, close_price') \
         .eq('symbol', symbol) \
         .gte('date', start_date.strftime('%Y-%m-%d')) \
-        .order('date', asc=True) \
+        .order('date', desc=False) \
         .execute()
     return response.data if response.data else []
 
