@@ -1,15 +1,20 @@
-import { useState, useEffect, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "./ui/button.tsx";
 import { Input } from "./ui/input.tsx";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "./ui/table.tsx";
+import { RefreshCw } from "lucide-react";
 import './Dashboard.css';
 import './MarketDataPage.css';
 
 interface MarketDataPageProps {
   onBack: () => void;
+  etfs: ETFData[];
+  isLoading: boolean;
+  error: string | null;
+  onRefresh: () => void;
 }
 
-interface ETFData {
+export interface ETFData {
   symbol: string;
   name: string;
   price: number;
@@ -20,73 +25,31 @@ interface ETFData {
   sharpe_ratio: number;
 }
 
-const fetchTopETFs = async (): Promise<ETFData[]> => {
-  console.log("Fetching real ETF data from backend...");
-  const response = await fetch('http://127.0.0.1:5000/api/etfs/market-data');
-  if (!response.ok) {
-    const errorBody = await response.json();
-    throw new Error(errorBody.error || 'Failed to fetch data from the backend.');
-  }
-  return await response.json();
-};
-
-export function MarketDataPage({ onBack }: MarketDataPageProps) {
-  const [etfs, setEtfs] = useState<ETFData[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // --- NEW: State for interactivity ---
+export function MarketDataPage({ onBack, etfs, isLoading, error, onRefresh }: MarketDataPageProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: keyof ETFData; direction: 'ascending' | 'descending' } | null>({
     key: 'symbol',
     direction: 'ascending',
   });
 
-  useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const data = await fetchTopETFs();
-        setEtfs(data);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadData();
-  }, []);
-
-  // --- NEW: Logic to filter and sort the data ---
   const filteredAndSortedEtfs = useMemo(() => {
     let sortableEtfs = [...etfs];
-
-    // 1. Filtering Logic
     if (searchTerm) {
       sortableEtfs = sortableEtfs.filter(etf =>
         etf.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
         etf.name.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
-
-    // 2. Sorting Logic
     if (sortConfig !== null) {
       sortableEtfs.sort((a, b) => {
-        if (a[sortConfig.key] < b[sortConfig.key]) {
-          return sortConfig.direction === 'ascending' ? -1 : 1;
-        }
-        if (a[sortConfig.key] > b[sortConfig.key]) {
-          return sortConfig.direction === 'ascending' ? 1 : -1;
-        }
+        if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'ascending' ? -1 : 1;
+        if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'ascending' ? 1 : -1;
         return 0;
       });
     }
-
     return sortableEtfs;
   }, [etfs, searchTerm, sortConfig]);
   
-  // --- NEW: Function to handle clicking on headers ---
   const requestSort = (key: keyof ETFData) => {
     let direction: 'ascending' | 'descending' = 'ascending';
     if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
@@ -101,15 +64,14 @@ export function MarketDataPage({ onBack }: MarketDataPageProps) {
   };
 
   const renderContent = () => {
-    if (isLoading) {
-      return <div className="loading-container">Analyzing Historical Data...</div>;
+    if (isLoading && etfs.length === 0) {
+      return <div className="loading-container">Fetching Live Market Data...</div>;
     }
     if (error) {
       return <div className="error-container">{error}</div>;
     }
     return (
       <>
-        {/* --- NEW: Search Bar --- */}
         <div className="toolbar-container">
             <Input 
                 type="text"
@@ -119,11 +81,9 @@ export function MarketDataPage({ onBack }: MarketDataPageProps) {
                 style={{ maxWidth: '400px' }}
             />
         </div>
-
         <Table>
           <TableHeader>
             <TableRow>
-              {/* --- MODIFIED: Headers are now clickable buttons with tooltips --- */}
               <TableHead>
                 <button onClick={() => requestSort('symbol')} className="sortable-header" title="The stock market symbol for the ETF">
                   Symbol <span className="sort-indicator">{getSortIndicator('symbol')}</span>
@@ -167,16 +127,21 @@ export function MarketDataPage({ onBack }: MarketDataPageProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {/* --- MODIFIED: Map over the new filteredAndSortedEtfs array --- */}
             {filteredAndSortedEtfs.map((etf) => (
               <TableRow key={etf.symbol}>
                 <TableCell style={{ fontWeight: 500 }}>{etf.symbol}</TableCell>
                 <TableCell>{etf.name}</TableCell>
                 <TableCell style={{ textAlign: 'right' }}>${etf.price.toFixed(2)}</TableCell>
-                <TableCell className={etf.ytd_return >= 0 ? 'positive-return' : 'negative-return'} style={{ textAlign: 'right' }}>
+                <TableCell 
+                  className={etf.ytd_return >= 0 ? 'positive-return' : 'negative-return'} 
+                  style={{ textAlign: 'right' }}
+                >
                   {etf.ytd_return.toFixed(2)}%
                 </TableCell>
-                <TableCell className={etf.one_year_return >= 0 ? 'positive-return' : 'negative-return'} style={{ textAlign: 'right' }}>
+                <TableCell 
+                  className={etf.one_year_return >= 0 ? 'positive-return' : 'negative-return'} 
+                  style={{ textAlign: 'right' }}
+                >
                   {etf.one_year_return.toFixed(2)}%
                 </TableCell>
                 <TableCell style={{ textAlign: 'right' }}>{etf.volatility.toFixed(2)}%</TableCell>
@@ -202,16 +167,16 @@ export function MarketDataPage({ onBack }: MarketDataPageProps) {
                <img src="/logo.png" alt="Finora Logo" style={{ height: '36px' }} />
             </div>
           </div>
+          <Button variant="outline" onClick={onRefresh} disabled={isLoading}>
+              <RefreshCw style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} />
+              {isLoading ? 'Refreshing...' : 'Refresh Data'}
+          </Button>
         </div>
       </header>
       <div className="container dashboard-body">
         <div className="welcome-section">
-          <h1 className="welcome-title">
-            Live US ETF Market Data
-          </h1>
-          <p className="welcome-subtitle">
-            Key metrics calculated from historical and live market data.
-          </p>
+          <h1 className="welcome-title">Live US ETF Market Data</h1>
+          <p className="welcome-subtitle">Key metrics calculated from historical and live market data.</p>
         </div>
         {renderContent()}
       </div>
