@@ -3,19 +3,19 @@ import { LandingPage } from './components/LandingPage.tsx';
 import { Onboarding, UserData } from './components/Onboarding.tsx';
 import { Dashboard } from './components/Dashboard.tsx';
 import { MarketDataPage, ETFData } from './components/MarketDataPage.tsx';
+import { ChatPage } from './components/ChatPage.tsx';
 
-type AppState = 'landing' | 'onboarding' | 'dashboard' | 'marketData';
+// 1. Add 'chat' to the possible app states
+type AppState = 'landing' | 'onboarding' | 'dashboard' | 'marketData' | 'chat';
 
 export default function App() {
   const [currentState, setCurrentState] = useState<AppState>('landing');
   const [userData, setUserData] = useState<UserData | null>(null);
 
-  // State for caching market data now lives here
   const [marketData, setMarketData] = useState<ETFData[]>([]);
   const [isMarketDataLoading, setIsMarketDataLoading] = useState(false);
   const [marketDataError, setMarketDataError] = useState<string | null>(null);
 
-  // Function to fetch (or re-fetch) market data
   const fetchMarketData = async () => {
     setIsMarketDataLoading(true);
     setMarketDataError(null);
@@ -26,7 +26,7 @@ export default function App() {
         throw new Error(errorBody.error || 'Failed to fetch data from the backend.');
       }
       const data = await response.json();
-      setMarketData(data); // Cache the data here
+      setMarketData(data);
     } catch (err: any) {
       setMarketDataError(err.message);
     } finally {
@@ -35,7 +35,6 @@ export default function App() {
   };
   
   const handleGoToMarketData = () => {
-    // Only fetch data the very first time.
     if (marketData.length === 0 && !marketDataError) {
       fetchMarketData();
     }
@@ -58,6 +57,14 @@ export default function App() {
 
   const handleBackToOnboarding = () => {
     setCurrentState('onboarding');
+  };
+
+  // 2. Add handlers for chat navigation
+  const handleGoToChat = () => {
+    setCurrentState('chat');
+  };
+  const handleBackToDashboard = () => {
+    setCurrentState('dashboard');
   };
 
   const handleSkipToDashboard = async () => {
@@ -93,7 +100,8 @@ export default function App() {
       return <Onboarding onComplete={handleOnboardingComplete} onBack={handleBackToLanding} />;
     
     case 'dashboard':
-      return userData ? <Dashboard userData={userData} onBack={handleBackToOnboarding} onGoHome={handleBackToLanding} onNavigateToMarket={handleGoToMarketData}/> : null;
+      // 3. Pass the new chat handler to the Dashboard
+      return userData ? <Dashboard userData={userData} onBack={handleBackToOnboarding} onGoHome={handleBackToLanding} onNavigateToMarket={handleGoToMarketData} onNavigateToChat={handleGoToChat} /> : null;
 
     case 'marketData':
       return (
@@ -105,6 +113,10 @@ export default function App() {
           onRefresh={fetchMarketData}
         />
       );
+
+    // 4. Add a new case to render the ChatPage
+    case 'chat':
+      return <ChatPage onBack={handleBackToDashboard} />;
     
     default:
       return <LandingPage onGetStarted={handleGetStarted} onSkipToDashboard={handleSkipToDashboard} onNavigateToMarket={handleGoToMarketData} />;

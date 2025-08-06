@@ -11,16 +11,19 @@ import {
   Target,
   PieChart,
   Info,
-  Lightbulb
+  Lightbulb,
+  MessageSquare // 1. Import a chat icon
 } from "lucide-react";
 import { UserData } from "./Onboarding.tsx";
 import './Dashboard.css';
 
+// 2. Add the new prop to the interface
 interface DashboardProps {
   userData: UserData;
   onBack: () => void;
   onGoHome: () => void;
   onNavigateToMarket: () => void;
+  onNavigateToChat: () => void; 
 }
 
 interface ETFRecommendation {
@@ -41,13 +44,12 @@ interface PortfolioProjection {
   optimistic: number;
 }
 
-export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket }: DashboardProps) {
+// 3. Accept the new prop in the function signature
+export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNavigateToChat }: DashboardProps) {
   const [activeView, setActiveView] = useState("overview");
 
-  // Get the user's first name from the full name
   const firstName = userData.name.split(' ')[0];
 
-  // Mock data - in a real app, this would come from your backend/API
   const generateRecommendations = (): ETFRecommendation[] => {
     const riskLevel = userData.riskTolerance;
     
@@ -207,12 +209,11 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket }: Da
 
   return (
     <div className="dashboard-page">
-      {/* Header */}
       <header className="dashboard-header">
         <div className="container header-content">
           <div className="header-left">
             <div className="logo" onClick={onGoHome} style={{ cursor: 'pointer' }}>
-              <img src="/logo10.png" alt="Finora Logo" style={{ height: '42px' }} />
+              <img src="/logo.png" alt="Finora Logo" style={{ height: '36px' }} />
             </div>
             <Button variant="ghost" onClick={onBack}>
               ← Back to Onboarding
@@ -221,14 +222,21 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket }: Da
               Market Data
             </Button>
           </div>
-          <Badge className="status-badge">
-            Plan Generated
-          </Badge>
+          {/* 4. Add the Chat button to the header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <Button variant="outline" onClick={onNavigateToChat}>
+                <MessageSquare style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} />
+                Chat with AI
+            </Button>
+            <Badge className="status-badge">
+              Plan Generated
+            </Badge>
+          </div>
         </div>
       </header>
 
+      {/* ... The rest of the dashboard JSX is unchanged ... */}
       <div className="container dashboard-body">
-        {/* Welcome Section */}
         <div className="welcome-section">
           <h1 className="welcome-title">
             {firstName}'s Personalized Investment Plan
@@ -237,8 +245,6 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket }: Da
             Welcome back! Based on your profile, we've created a customized portfolio to help you reach your financial goals.
           </p>
         </div>
-
-        {/* Key Metrics Cards */}
         <div className="metrics-grid">
           <Card>
             <CardHeader className="metric-card-header">
@@ -250,7 +256,6 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket }: Da
               <p className="metric-card-subtext">Initial investment</p>
             </CardContent>
           </Card>
-
           <Card>
             <CardHeader className="metric-card-header">
               <CardTitle className="metric-card-title">Risk Level</CardTitle>
@@ -261,7 +266,6 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket }: Da
               <p className="metric-card-subtext">{userData.riskTolerance}</p>
             </CardContent>
           </Card>
-
           <Card>
             <CardHeader className="metric-card-header">
               <CardTitle className="metric-card-title">Time Horizon</CardTitle>
@@ -274,7 +278,6 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket }: Da
               <p className="metric-card-subtext">Investment timeline</p>
             </CardContent>
           </Card>
-
           <Card>
             <CardHeader className="metric-card-header">
               <CardTitle className="metric-card-title">Expected Annual Return</CardTitle>
@@ -288,8 +291,6 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket }: Da
             </CardContent>
           </Card>
         </div>
-
-        {/* Main Content Tabs */}
         <Tabs value={activeView} onValueChange={setActiveView} className="tabs-container">
           <TabsList className="tabs-grid">
             <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -297,7 +298,6 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket }: Da
             <TabsTrigger value="projections">Projections</TabsTrigger>
             <TabsTrigger value="education">Education</TabsTrigger>
           </TabsList>
-
           <TabsContent value="overview">
             <div className="overview-grid">
               <Card>
@@ -319,8 +319,6 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket }: Da
                   ))}
                 </CardContent>
               </Card>
-
-
               <Card>
                 <CardHeader>
                   <CardTitle className="card-title-flex">
@@ -328,7 +326,6 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket }: Da
                     <span>Key Insights</span>
                   </CardTitle>
                 </CardHeader>
-                {/* REPLACE THE CardContent with this new version */}
                 <CardContent>
                   <ul className="insights-list">
                     <li className="insight-item dot-blue">
@@ -354,7 +351,6 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket }: Da
               </Card>
             </div>
           </TabsContent>
-
           <TabsContent value="portfolio">
             <div className="portfolio-list">
               {recommendations.map((etf) => (
@@ -397,7 +393,6 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket }: Da
               ))}
             </div>
           </TabsContent>
-          
           <TabsContent value="projections">
              <Card>
                 <CardHeader>
@@ -411,7 +406,6 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket }: Da
                     {[5, 10, 15, 20].map((year) => {
                         const projection = projections.find(p => p.year === year);
                         if (!projection) return null;
-                        
                         return (
                         <div key={year} className="projection-item">
                             <div className="projection-header">
@@ -439,29 +433,25 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket }: Da
                 </CardContent>
                 </Card>
           </TabsContent>
-
           <TabsContent value="education">
              <div className="education-grid">
                 <Card style={{ gap: '0.75rem' }}>
-                  <CardHeader>
-                    <CardTitle>Understanding ETFs</CardTitle>
-                  </CardHeader>
-                  <CardContent style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    <p className="education-text">
-                      Exchange-Traded Funds (ETFs) are investment funds that trade on stock exchanges like individual stocks. They offer instant diversification by holding many different stocks or bonds.
-                    </p>
-                    <div>
-                      <h4 style={{ fontWeight: 500, marginBottom: '0.5rem' }}>Benefits of ETFs:</h4>
-                      <ul className="education-list" style={{ paddingLeft: '20px' }}>
-                        <li>Low fees compared to mutual funds</li>
-                        <li>Instant diversification</li>
-                        <li>Easy to buy and sell</li>
-                        <li>Transparent holdings</li>
-                      </ul>
-                    </div>
-                  </CardContent>
+                    <CardHeader><CardTitle>Understanding ETFs</CardTitle></CardHeader>
+                    <CardContent style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <p className="education-text">
+                        Exchange-Traded Funds (ETFs) are investment funds that trade on stock exchanges like individual stocks. They offer instant diversification by holding many different stocks or bonds.
+                        </p>
+                        <div>
+                        <h4 style={{ fontWeight: 500, marginBottom: '0.5rem' }}>Benefits of ETFs:</h4>
+                        <ul className="education-list" style={{ paddingLeft: '20px' }}>
+                            <li>Low fees compared to mutual funds</li>
+                            <li>Instant diversification</li>
+                            <li>Easy to buy and sell</li>
+                            <li>Transparent holdings</li>
+                        </ul>
+                        </div>
+                    </CardContent>
                 </Card>
-
                 <Card>
                   <CardHeader>
                     <CardTitle>Investment Principles</CardTitle>
@@ -497,10 +487,7 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket }: Da
                 </Card>
             </div>
           </TabsContent>
-
         </Tabs>
-
-        {/* Action Section */}
         <Card style={{marginTop: '2rem'}}>
           <CardHeader>
             <CardTitle>Ready to Start Investing?</CardTitle>
