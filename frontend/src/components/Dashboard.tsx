@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"; // 1. Import useEffect
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card.tsx";
 import { Badge } from "./ui/badge.tsx";
 import { Button } from "./ui/button.tsx";
@@ -16,8 +16,9 @@ import {
 } from "lucide-react";
 import { UserData } from "./Onboarding.tsx";
 import './Dashboard.css';
+import './MarketDataPage.css'; // Re-using loading/error styles
 
-// --- 2. Define TypeScript interfaces to match the new API response ---
+// Define TypeScript interfaces to match the new API response
 interface RecommendedETF {
   symbol: string;
   name: string;
@@ -27,10 +28,10 @@ interface RecommendedETF {
 }
 
 interface PortfolioResponse {
-  risk_tolerance: string;
+  nuanced_risk_score: number;
+  risk_tolerance_original: string;
   recommended_portfolio: RecommendedETF[];
 }
-// --- End of new interfaces ---
 
 interface DashboardProps {
   userData: UserData;
@@ -52,12 +53,12 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
   const [activeView, setActiveView] = useState("overview");
   const firstName = userData.name.split(' ')[0];
 
-  // --- 3. Add state for loading, error, and the fetched portfolio ---
+  // Add state for loading, error, and the fetched portfolio
   const [portfolio, setPortfolio] = useState<PortfolioResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // --- 4. Use useEffect to fetch the real recommendation from the backend ---
+  // Use useEffect to fetch the real recommendation from the backend
   useEffect(() => {
     const fetchRecommendation = async () => {
       setIsLoading(true);
@@ -67,8 +68,12 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            risk_tolerance: userData.riskTolerance,
-            investment_amount: userData.investmentAmount
+            age: userData.age,
+            income: userData.income,
+            investmentAmount: userData.investmentAmount,
+            timeHorizon: userData.timeHorizon,
+            riskTolerance: userData.riskTolerance,
+            experience: userData.experience
           }),
         });
         if (!response.ok) {
@@ -85,12 +90,9 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
     };
 
     fetchRecommendation();
-  }, [userData.riskTolerance, userData.investmentAmount]); // Re-fetch if key user data changes
+  }, [userData]); // Re-fetch if the user data ever changes
 
-  // --- 5. DELETE the old mock generateRecommendations function ---
-  // The generateRecommendations function has been removed.
-
-  // The generateProjections function is kept for now as its logic is separate.
+  // The generateProjections function is kept for now.
   const generateProjections = (): PortfolioProjection[] => {
     const baseAmount = userData.investmentAmount;
     const projections: PortfolioProjection[] = [];
@@ -109,20 +111,21 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
     }
     return projections;
   };
-
   const projections = generateProjections();
-  const riskScore = userData.riskTolerance === 'conservative' ? 3 : userData.riskTolerance === 'moderate' ? 6 : 9;
-
-  // --- 6. Add conditional rendering for loading and error states ---
+  
+  // Conditional rendering for loading and error states
   if (isLoading) {
-    return <div className="loading-container">Generating Your Personalized Plan...</div>;
+    return <div className="loading-container" style={{height: '100vh'}}>Generating Your Personalized Plan...</div>;
   }
 
   if (error || !portfolio) {
-    return <div className="error-container">Error: {error || "Could not load portfolio."}</div>;
+    return <div className="error-container" style={{margin: '2rem'}}>
+        <h2>Could Not Generate Plan</h2>
+        <p>Error: {error || "An unknown error occurred."}</p>
+        <Button onClick={onBack} style={{marginTop: '1rem'}}>Go Back</Button>
+    </div>;
   }
   
-  // --- The main return block now uses the 'portfolio' state object ---
   return (
     <div className="dashboard-page">
       <header className="dashboard-header">
@@ -153,11 +156,10 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
       <div className="container dashboard-body">
         <div className="welcome-section">
           <h1 className="welcome-title">{firstName}'s Personalized Investment Plan</h1>
-          <p className="welcome-subtitle">Welcome back! Based on your profile, we've created a customized portfolio to help you reach your financial goals.</p>
+          <p className="welcome-subtitle">Welcome back! Based on your full profile, we've created this data-driven portfolio to help you reach your goals.</p>
         </div>
 
         <div className="metrics-grid">
-          {/* ... The metric cards are unchanged and still work correctly ... */}
           <Card>
             <CardHeader className="metric-card-header">
               <CardTitle className="metric-card-title">Investment Amount</CardTitle>
@@ -174,8 +176,8 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
               <Shield className="metric-card-icon" />
             </CardHeader>
             <CardContent>
-              <div className="metric-card-value">{riskScore}/10</div>
-              <p className="metric-card-subtext">{userData.riskTolerance}</p>
+              <div className="metric-card-value">{portfolio.nuanced_risk_score.toFixed(1)}/10</div>
+              <p className="metric-card-subtext" style={{textTransform: 'capitalize'}}>{portfolio.risk_tolerance_original} (Adjusted Score)</p>
             </CardContent>
           </Card>
           <Card>
@@ -222,7 +224,6 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
                   </CardTitle>
                 </CardHeader>
                 <CardContent style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
-                  {/* 7. Update JSX to use the new 'portfolio' state object */}
                   {portfolio.recommended_portfolio.map((etf) => (
                     <div key={etf.symbol} className="allocation-item">
                       <div className="allocation-labels">
@@ -234,18 +235,17 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
                   ))}
                 </CardContent>
               </Card>
-              {/* Key Insights card is unchanged */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="card-title-flex">
-                    <Lightbulb className="card-title-icon" />
-                    <span>Key Insights</span>
-                  </CardTitle>
+                    <CardTitle className="card-title-flex">
+                        <Lightbulb className="card-title-icon" />
+                        <span>Key Insights</span>
+                    </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <ul className="insights-list">
                     <li className="insight-item dot-blue"><div><p className="insight-text-title">Data-Driven</p><p className="insight-text-desc">This portfolio is generated based on historical data analysis.</p></div></li>
-                    <li className="insight-item dot-green"><div><p className="insight-text-title">Personalized</p><p className="insight-text-desc">The asset mix is tailored to your specific risk tolerance.</p></div></li>
+                    <li className="insight-item dot-green"><div><p className="insight-text-title">Truly Personalized</p><p className="insight-text-desc">The asset mix is tailored to your entire profile, not just one answer.</p></div></li>
                     <li className="insight-item dot-purple"><div><p className="insight-text-title">Diversified</p><p className="insight-text-desc">Your investment is spread across different asset classes to manage risk.</p></div></li>
                   </ul>
                 </CardContent>
@@ -255,7 +255,6 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
 
           <TabsContent value="portfolio">
             <div className="portfolio-list">
-              {/* 7. Update JSX to use the new 'portfolio' state object */}
               {portfolio.recommended_portfolio.map((etf) => (
                 <Card key={etf.symbol}>
                   <CardHeader>
@@ -280,7 +279,6 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
           </TabsContent>
           
           <TabsContent value="projections">
-             {/* Projections tab is unchanged and still uses its mock data */}
              <Card>
                 <CardHeader>
                     <CardTitle>Growth Projections</CardTitle>
@@ -311,17 +309,59 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
           </TabsContent>
 
           <TabsContent value="education">
-             {/* Education tab is unchanged */}
              <div className="education-grid">
-                <Card style={{ gap: '0.75rem' }}><CardHeader><CardTitle>Understanding ETFs</CardTitle></CardHeader><CardContent style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}><p className="education-text">Exchange-Traded Funds (ETFs) are investment funds that trade on stock exchanges like individual stocks. They offer instant diversification by holding many different stocks or bonds.</p><div><h4 style={{ fontWeight: 500, marginBottom: '0.5rem' }}>Benefits of ETFs:</h4><ul className="education-list" style={{ paddingLeft: '20px' }}><li>Low fees compared to mutual funds</li><li>Instant diversification</li><li>Easy to buy and sell</li><li>Transparent holdings</li></ul></div></CardContent></Card>
-                <Card><CardHeader><CardTitle>Investment Principles</CardTitle></CardHeader><CardContent><ul className="insights-list"><li className="insight-item dot-blue"><div><p className="insight-text-title">Diversification</p><p className="insight-text-desc">Don't put all your eggs in one basket. Spread risk across different investments.</p></div></li><li className="insight-item dot-green"><div><p className="insight-text-title">Time in Market</p><p className="insight-text-desc">Focus on time in the market, not timing it. Patient investing yields better results.</p></div></li><li className="insight-item dot-purple"><div><p className="insight-text-title">Keep Costs Low</p><p className="insight-text-desc">High fees are a drag on performance. Prioritize low-cost funds to maximize returns.</p></div></li><li className="insight-item dot-orange"><div><p className="insight-text-title">Invest Consistently</p><p className="insight-text-desc">Make investing a regular habit. This discipline is the key to long-term growth.</p></div></li></ul></CardContent></Card>
+                <Card style={{ gap: '0.75rem' }}>
+                    <CardHeader><CardTitle>Understanding ETFs</CardTitle></CardHeader>
+                    <CardContent style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <p className="education-text">Exchange-Traded Funds (ETFs) are investment funds that trade on stock exchanges like individual stocks. They offer instant diversification by holding many different stocks or bonds.</p>
+                        <div>
+                        <h4 style={{ fontWeight: 500, marginBottom: '0.5rem' }}>Benefits of ETFs:</h4>
+                        <ul className="education-list" style={{ paddingLeft: '20px' }}>
+                            <li>Low fees compared to mutual funds</li>
+                            <li>Instant diversification</li>
+                            <li>Easy to buy and sell</li>
+                            <li>Transparent holdings</li>
+                        </ul>
+                        </div>
+                    </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Investment Principles</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="insights-list">
+                      <li className="insight-item dot-blue"><div><p className="insight-text-title">Diversification</p><p className="insight-text-desc">Don't put all your eggs in one basket. Spread risk across different investments.</p></div></li>
+                      <li className="insight-item dot-green"><div><p className="insight-text-title">Time in Market</p><p className="insight-text-desc">Focus on time in the market, not timing it. Patient investing yields better results.</p></div></li>
+                      <li className="insight-item dot-purple"><div><p className="insight-text-title">Keep Costs Low</p><p className="insight-text-desc">High fees are a drag on performance. Prioritize low-cost funds to maximize returns.</p></div></li>
+                      <li className="insight-item dot-orange"><div><p className="insight-text-title">Invest Consistently</p><p className="insight-text-desc">Make investing a regular habit. This discipline is the key to long-term growth.</p></div></li>
+                    </ul>
+                  </CardContent>
+                </Card>
             </div>
           </TabsContent>
         </Tabs>
 
         <Card style={{marginTop: '2rem'}}>
-          <CardHeader><CardTitle>Ready to Start Investing?</CardTitle><CardDescription>Your personalized plan is ready. Here's how to get started with your investment journey.</CardDescription></CardHeader>
-          <CardContent><div className="action-buttons"><Button className="action-btn-primary">Connect Your Brokerage Account</Button><Button variant="outline">Download Plan PDF</Button><Button variant="outline">Schedule a Call</Button></div></CardContent>
+          <CardHeader>
+            <CardTitle>Ready to Start Investing?</CardTitle>
+            <CardDescription>
+              Your personalized plan is ready. Here's how to get started with your investment journey.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="action-buttons">
+              <Button className="action-btn-primary">
+                Connect Your Brokerage Account
+              </Button>
+              <Button variant="outline">
+                Download Plan PDF
+              </Button>
+              <Button variant="outline">
+                Schedule a Call
+              </Button>
+            </div>
+          </CardContent>
         </Card>
       </div>
     </div>
