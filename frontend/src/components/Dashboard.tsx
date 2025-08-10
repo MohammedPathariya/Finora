@@ -218,7 +218,6 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
                   </CardTitle>
                 </CardHeader>
                 <CardContent style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
-                  {/* MODIFIED: Create a sorted copy of the portfolio before mapping */}
                   {[...portfolio.recommended_portfolio]
                     .sort((a, b) => b.allocation - a.allocation || a.category.localeCompare(b.category))
                     .map((etf) => (
@@ -252,25 +251,28 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
 
           <TabsContent value="portfolio">
             <div className="portfolio-list">
-              {portfolio.recommended_portfolio.map((etf) => (
-                <Card key={etf.symbol}>
-                  <CardHeader>
-                    <CardTitle className="etf-card-title">{etf.symbol} - {etf.name}</CardTitle>
-                    <CardDescription>{etf.category}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="etf-details-grid">
-                      <div>
-                        <p className="etf-detail-label">Allocation</p>
-                        <p className="etf-detail-value etf-detail-value-blue">{etf.allocation}%</p>
+              {/* MODIFIED: Sorting this list as well for consistency */}
+              {[...portfolio.recommended_portfolio]
+                .sort((a, b) => b.allocation - a.allocation || a.name.localeCompare(b.name))
+                .map((etf) => (
+                  <Card key={etf.symbol}>
+                    <CardHeader>
+                      <CardTitle className="etf-card-title">{etf.symbol} - {etf.name}</CardTitle>
+                      <CardDescription>{etf.category}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="etf-details-grid">
+                        <div>
+                          <p className="etf-detail-label">Allocation</p>
+                          <p className="etf-detail-value etf-detail-value-blue">{etf.allocation}%</p>
+                        </div>
+                        <div>
+                          <p className="etf-detail-label">Investment Amount</p>
+                          <p className="etf-detail-value">${etf.investment_amount.toLocaleString()}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="etf-detail-label">Investment Amount</p>
-                        <p className="etf-detail-value">${etf.investment_amount.toLocaleString()}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
               ))}
             </div>
           </TabsContent>
