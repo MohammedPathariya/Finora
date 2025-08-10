@@ -18,7 +18,7 @@ import { UserData } from "./Onboarding.tsx";
 import './Dashboard.css';
 import './MarketDataPage.css'; // Re-using loading/error styles
 
-// --- Define Types to match the new, combined API response ---
+// Define Types to match the new, combined API response
 interface RecommendedETF {
   symbol: string;
   name: string;
@@ -37,6 +37,7 @@ interface PortfolioProjection {
 interface PortfolioResponse {
   nuanced_risk_score: number;
   risk_tolerance_original: string;
+  expected_annual_return: number;
   recommended_portfolio: RecommendedETF[];
   projections: PortfolioProjection[];
 }
@@ -53,12 +54,10 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
   const [activeView, setActiveView] = useState("overview");
   const firstName = userData.name.split(' ')[0];
 
-  // State for loading, error, and the fetched portfolio (which now includes projections)
   const [portfolio, setPortfolio] = useState<PortfolioResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // useEffect now makes a single, efficient API call to get all dashboard data
   useEffect(() => {
     const fetchDashboardData = async () => {
       setIsLoading(true);
@@ -92,9 +91,6 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
     fetchDashboardData();
   }, [userData]);
 
-  // All mock data functions (`generateRecommendations` and `generateProjections`) are now deleted.
-
-  // Conditional rendering for loading and error states
   if (isLoading) {
     return <div className="loading-container" style={{height: '100vh'}}>Generating Your Personalized Plan & Projections...</div>;
   }
@@ -180,10 +176,9 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
             </CardHeader>
             <CardContent>
               <div className="metric-card-value">
-                {/* This could also be made data-driven in the future */}
-                {portfolio.risk_tolerance_original === 'conservative' ? '6%' : portfolio.risk_tolerance_original === 'moderate' ? '7%' : '9%'}
+                {portfolio.expected_annual_return.toFixed(2)}%
               </div>
-              <p className="metric-card-subtext">Projected return</p>
+              <p className="metric-card-subtext">Data-driven projection (1-Yr Avg)</p>
             </CardContent>
           </Card>
         </div>
