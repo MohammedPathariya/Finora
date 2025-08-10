@@ -42,7 +42,13 @@ Test endpoints with curl or Postman
 
 
 
+Remaining Stuff:
 
+Make Projections Data-Driven: The "Projections" tab on your dashboard still uses a hardcoded mock function (generateProjections). The next logical step is to create a new backend endpoint that takes the user's recommended portfolio and runs a real financial projection (like a Monte Carlo simulation) to generate more accurate future-looking data.
+
+Add Advanced Visualizations (Charts): Your original plan mentioned using Recharts or Chart.js. You now have a rich set of historical data for over 100 ETFs. A great next feature would be to add a historical performance line chart to the Market Data page or for each ETF in the user's portfolio.
+
+Implement Core User Actions: The action buttons on the dashboard ("Connect Your Brokerage Account", "Download Plan PDF", "Schedule a Call") are currently placeholders. Building out this functionality would be the next major phase of development.
 
 
 

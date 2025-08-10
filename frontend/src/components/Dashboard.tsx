@@ -18,6 +18,7 @@ import { UserData } from "./Onboarding.tsx";
 import './Dashboard.css';
 import './MarketDataPage.css'; // Re-using loading/error styles
 
+// --- Define Types to match the new, combined API response ---
 interface RecommendedETF {
   symbol: string;
   name: string;
@@ -26,10 +27,18 @@ interface RecommendedETF {
   investment_amount: number;
 }
 
+interface PortfolioProjection {
+  year: number;
+  conservative: number;
+  expected: number;
+  optimistic: number;
+}
+
 interface PortfolioResponse {
   nuanced_risk_score: number;
   risk_tolerance_original: string;
   recommended_portfolio: RecommendedETF[];
+  projections: PortfolioProjection[];
 }
 
 interface DashboardProps {
@@ -40,23 +49,18 @@ interface DashboardProps {
   onNavigateToChat: () => void;
 }
 
-interface PortfolioProjection {
-  year: number;
-  conservative: number;
-  expected: number;
-  optimistic: number;
-}
-
 export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNavigateToChat }: DashboardProps) {
   const [activeView, setActiveView] = useState("overview");
   const firstName = userData.name.split(' ')[0];
 
+  // State for loading, error, and the fetched portfolio (which now includes projections)
   const [portfolio, setPortfolio] = useState<PortfolioResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // useEffect now makes a single, efficient API call to get all dashboard data
   useEffect(() => {
-    const fetchRecommendation = async () => {
+    const fetchDashboardData = async () => {
       setIsLoading(true);
       setError(null);
       try {
@@ -74,7 +78,7 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
         });
         if (!response.ok) {
           const errData = await response.json();
-          throw new Error(errData.error || "Failed to fetch recommendation.");
+          throw new Error(errData.error || "Failed to fetch recommendation and projections.");
         }
         const data: PortfolioResponse = await response.json();
         setPortfolio(data);
@@ -85,31 +89,14 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
       }
     };
 
-    fetchRecommendation();
+    fetchDashboardData();
   }, [userData]);
 
-  const generateProjections = (): PortfolioProjection[] => {
-    const baseAmount = userData.investmentAmount;
-    const projections: PortfolioProjection[] = [];
-    const rates = userData.riskTolerance === 'conservative' 
-      ? { conservative: 0.04, expected: 0.06, optimistic: 0.08 }
-      : userData.riskTolerance === 'moderate'
-      ? { conservative: 0.05, expected: 0.07, optimistic: 0.10 }
-      : { conservative: 0.06, expected: 0.09, optimistic: 0.12 };
-    for (let year = 1; year <= 20; year++) {
-      projections.push({
-        year,
-        conservative: Math.round(baseAmount * Math.pow(1 + rates.conservative, year)),
-        expected: Math.round(baseAmount * Math.pow(1 + rates.expected, year)),
-        optimistic: Math.round(baseAmount * Math.pow(1 + rates.optimistic, year))
-      });
-    }
-    return projections;
-  };
-  const projections = generateProjections();
-  
+  // All mock data functions (`generateRecommendations` and `generateProjections`) are now deleted.
+
+  // Conditional rendering for loading and error states
   if (isLoading) {
-    return <div className="loading-container" style={{height: '100vh'}}>Generating Your Personalized Plan...</div>;
+    return <div className="loading-container" style={{height: '100vh'}}>Generating Your Personalized Plan & Projections...</div>;
   }
 
   if (error || !portfolio) {
@@ -193,7 +180,8 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
             </CardHeader>
             <CardContent>
               <div className="metric-card-value">
-                {userData.riskTolerance === 'conservative' ? '6%' : userData.riskTolerance === 'moderate' ? '7%' : '9%'}
+                {/* This could also be made data-driven in the future */}
+                {portfolio.risk_tolerance_original === 'conservative' ? '6%' : portfolio.risk_tolerance_original === 'moderate' ? '7%' : '9%'}
               </div>
               <p className="metric-card-subtext">Projected return</p>
             </CardContent>
@@ -251,7 +239,6 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
 
           <TabsContent value="portfolio">
             <div className="portfolio-list">
-              {/* MODIFIED: Sorting this list as well for consistency */}
               {[...portfolio.recommended_portfolio]
                 .sort((a, b) => b.allocation - a.allocation || a.name.localeCompare(b.name))
                 .map((etf) => (
@@ -281,17 +268,16 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
              <Card>
                 <CardHeader>
                     <CardTitle>Growth Projections</CardTitle>
-                    <CardDescription>Potential portfolio value over time based on different market scenarios</CardDescription>
+                    <CardDescription>
+                        Portfolio value over time based on a Monte Carlo simulation of 500 possible futures.
+                    </CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="projections-list">
-                    {[5, 10, 15, 20].map((year) => {
-                        const projection = projections.find(p => p.year === year);
-                        if (!projection) return null;
-                        return (
-                        <div key={year} className="projection-item">
+                    {portfolio.projections.map((projection) => (
+                        <div key={projection.year} className="projection-item">
                             <div className="projection-header">
-                            <span className="projection-year">Year {year}</span>
+                            <span className="projection-year">Year {projection.year}</span>
                             <span className="projection-expected">Expected: ${projection.expected.toLocaleString()}</span>
                             </div>
                             <div className="projection-scenarios-grid">
@@ -300,8 +286,7 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
                             <div className="scenario-box scenario-optimistic"><p className="scenario-title">Optimistic</p><p>${projection.optimistic.toLocaleString()}</p></div>
                             </div>
                         </div>
-                        );
-                    })}
+                    ))}
                     </div>
                 </CardContent>
                 </Card>
