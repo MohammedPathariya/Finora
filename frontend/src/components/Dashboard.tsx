@@ -18,7 +18,6 @@ import { UserData } from "./Onboarding.tsx";
 import './Dashboard.css';
 import './MarketDataPage.css'; // Re-using loading/error styles
 
-// Define TypeScript interfaces to match the new API response
 interface RecommendedETF {
   symbol: string;
   name: string;
@@ -41,7 +40,6 @@ interface DashboardProps {
   onNavigateToChat: () => void;
 }
 
-// Projections are still mocked for now, as they have their own logic
 interface PortfolioProjection {
   year: number;
   conservative: number;
@@ -53,12 +51,10 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
   const [activeView, setActiveView] = useState("overview");
   const firstName = userData.name.split(' ')[0];
 
-  // Add state for loading, error, and the fetched portfolio
   const [portfolio, setPortfolio] = useState<PortfolioResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Use useEffect to fetch the real recommendation from the backend
   useEffect(() => {
     const fetchRecommendation = async () => {
       setIsLoading(true);
@@ -90,9 +86,8 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
     };
 
     fetchRecommendation();
-  }, [userData]); // Re-fetch if the user data ever changes
+  }, [userData]);
 
-  // The generateProjections function is kept for now.
   const generateProjections = (): PortfolioProjection[] => {
     const baseAmount = userData.investmentAmount;
     const projections: PortfolioProjection[] = [];
@@ -113,7 +108,6 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
   };
   const projections = generateProjections();
   
-  // Conditional rendering for loading and error states
   if (isLoading) {
     return <div className="loading-container" style={{height: '100vh'}}>Generating Your Personalized Plan...</div>;
   }
@@ -224,14 +218,17 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
                   </CardTitle>
                 </CardHeader>
                 <CardContent style={{display: 'flex', flexDirection: 'column', gap: '1rem'}}>
-                  {portfolio.recommended_portfolio.map((etf) => (
-                    <div key={etf.symbol} className="allocation-item">
-                      <div className="allocation-labels">
-                        <span className="allocation-category">{etf.category}</span>
-                        <span className="allocation-percentage">{etf.allocation}%</span>
+                  {/* MODIFIED: Create a sorted copy of the portfolio before mapping */}
+                  {[...portfolio.recommended_portfolio]
+                    .sort((a, b) => b.allocation - a.allocation || a.category.localeCompare(b.category))
+                    .map((etf) => (
+                      <div key={etf.symbol} className="allocation-item">
+                        <div className="allocation-labels">
+                          <span className="allocation-category">{etf.category}</span>
+                          <span className="allocation-percentage">{etf.allocation}%</span>
+                        </div>
+                        <Progress value={etf.allocation} className="allocation-progress" />
                       </div>
-                      <Progress value={etf.allocation} className="allocation-progress" />
-                    </div>
                   ))}
                 </CardContent>
               </Card>
