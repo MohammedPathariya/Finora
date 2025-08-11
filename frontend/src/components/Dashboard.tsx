@@ -15,18 +15,17 @@ import {
   MessageSquare
 } from "lucide-react";
 import { UserData } from "./Onboarding.tsx";
+import { HistoricalChart } from "./HistoricalChart.tsx"; // 1. Import the new chart component
 import './Dashboard.css';
-import './MarketDataPage.css';
-import { HistoricalChart } from "./HistoricalChart.tsx";
+import './MarketDataPage.css'; // Re-using loading/error styles
 
-// Define Types to match the new, combined API response
 interface RecommendedETF {
   symbol: string;
   name: string;
   category: string;
   allocation: number;
   investment_amount: number;
-  historical_data: { date: string, close_price: number }[];
+  historical_data: { date: string, close_price: number }[]; // 2. Add historical data to the interface
 }
 
 interface PortfolioProjection {
@@ -255,6 +254,11 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
                           <p className="etf-detail-value">${etf.investment_amount.toLocaleString()}</p>
                         </div>
                       </div>
+                      {/* 3. Add the new chart component here */}
+                      <h4 style={{ fontWeight: 500, fontSize: '0.875rem', borderTop: '1px solid #eee', paddingTop: '1rem' }}>
+                        1-Year Performance
+                      </h4>
+                      <HistoricalChart data={etf.historical_data} />
                     </CardContent>
                   </Card>
               ))}
