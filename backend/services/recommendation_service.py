@@ -58,6 +58,7 @@ def _find_best_etf_for_category(category: str, all_metrics: dict, risk_tolerance
             max_score, best_etf = score, {"symbol": symbol, **metrics}
     return best_etf
 
+# The only change is in the main `generate_recommendation` function
 def generate_recommendation(profile: dict) -> dict:
     """
     The main function to generate a fully personalized, data-driven recommendation.
@@ -73,27 +74,29 @@ def generate_recommendation(profile: dict) -> dict:
     for category, percentage in dynamic_allocation_model.items():
         best_etf = _find_best_etf_for_category(category, all_etf_metrics, risk_tolerance)
         if best_etf:
+            # --- NEW: Fetch 1 year of historical data for the chart ---
+            chart_data = get_historical_data_for_period(best_etf['symbol'], 365)
+
             recommended_portfolio.append({
                 "symbol": best_etf['symbol'],
                 "name": best_etf['name'],
                 "category": category,
                 "allocation": round(percentage * 100),
-                "investment_amount": round(investment_amount * percentage, 2)
+                "investment_amount": round(investment_amount * percentage, 2),
+                "historical_data": chart_data # <-- ADD THIS to the object
             })
-    
-    # 2. NEW: CALCULATE THE WEIGHTED AVERAGE EXPECTED RETURN OF THE FINAL PORTFOLIO
+            
     portfolio_expected_return = 0.0
     for etf in recommended_portfolio:
         symbol = etf['symbol']
         allocation_pct = etf['allocation'] / 100.0
-        # Get the 1-year return for this specific ETF from our metrics
         etf_return = all_etf_metrics.get(symbol, {}).get('one_year_return', 0.0)
         portfolio_expected_return += allocation_pct * etf_return
 
     return {
         "nuanced_risk_score": round(risk_score, 2),
         "risk_tolerance_original": risk_tolerance,
-        "expected_annual_return": round(portfolio_expected_return, 2), # <-- NEW
+        "expected_annual_return": round(portfolio_expected_return, 2),
         "recommended_portfolio": recommended_portfolio
     }
 

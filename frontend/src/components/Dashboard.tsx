@@ -16,7 +16,8 @@ import {
 } from "lucide-react";
 import { UserData } from "./Onboarding.tsx";
 import './Dashboard.css';
-import './MarketDataPage.css'; // Re-using loading/error styles
+import './MarketDataPage.css';
+import { HistoricalChart } from "./HistoricalChart.tsx";
 
 // Define Types to match the new, combined API response
 interface RecommendedETF {
@@ -25,6 +26,7 @@ interface RecommendedETF {
   category: string;
   allocation: number;
   investment_amount: number;
+  historical_data: { date: string, close_price: number }[];
 }
 
 interface PortfolioProjection {
