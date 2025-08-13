@@ -5,6 +5,9 @@ import { Dashboard } from './components/Dashboard.tsx';
 import { MarketDataPage, ETFData } from './components/MarketDataPage.tsx';
 import { ChatPage } from './components/ChatPage.tsx';
 
+
+
+
 // 1. Add 'chat' to the possible app states
 type AppState = 'landing' | 'onboarding' | 'dashboard' | 'marketData' | 'chat';
 
