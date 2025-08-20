@@ -66,8 +66,8 @@ export default function App() {
   const handleGoToChat = () => {
     setCurrentState('chat');
   };
-
-  // The developer shortcut function is restored here
+  
+  // 1. The developer shortcut function is restored here
   const handleSkipToDashboard = async () => {
     try {
       const response = await fetch('http://127.0.0.1:5000/onboard/1');
@@ -92,7 +92,7 @@ export default function App() {
       alert(error);
     }
   };
-  
+
   const renderContent = () => {
     switch (currentState) {
       case 'landing':
@@ -119,16 +119,13 @@ export default function App() {
     <>
       {currentState !== 'onboarding' && (
         <AppHeader
-          variant={!userData ? 'landing' : 'loggedIn'}
+          isLoggedIn={!!userData}
           onGoHome={handleBackToLanding}
           onGetStarted={handleGetStarted}
           onNavigateToMarket={handleGoToMarketData}
           onNavigateToChat={handleGoToChat}
           onGoToDashboard={handleGoToDashboard}
-          onSkipToDashboard={handleSkipToDashboard} // Pass the function to the header
-          showRefreshButton={currentState === 'marketData'}
-          isRefreshing={isMarketDataLoading}
-          onRefresh={fetchMarketData}
+          onSkipToDashboard={handleSkipToDashboard} // 2. Pass the function to the header
         />
       )}
       <main>

@@ -1,5 +1,4 @@
 import { Button } from "./ui/button.tsx";
-import { Badge } from "./ui/badge.tsx";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card.tsx";
 import { TrendingUp, Shield, Brain, BarChart3, Users } from "lucide-react";
 import './LandingPage.css';
@@ -15,7 +14,6 @@ export function LandingPage({ onGetStarted }: LandingPageProps) {
       {/* The old <header> section is now completely removed from this file */}
       
       <section className="container hero-section">
-        <Badge className="hero-badge">AI-Powered Wealth Planning</Badge>
         <h1 className="hero-title" style={{ lineHeight: 1.2 }}>
           Personalized Wealth Planning, Powered by AI
         </h1>
