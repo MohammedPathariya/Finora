@@ -2,6 +2,7 @@ import { Button } from "./ui/button.tsx";
 import { MessageSquare, RefreshCw } from "lucide-react";
 import './AppHeader.css';
 
+// The props interface is updated to accept the developer shortcut function
 interface AppHeaderProps {
   variant: 'landing' | 'loggedIn';
   onGoHome: () => void;
@@ -9,6 +10,7 @@ interface AppHeaderProps {
   onNavigateToChat?: () => void;
   onGetStarted?: () => void;
   onGoToDashboard?: () => void;
+  onSkipToDashboard?: () => void; // For the dev button
   showRefreshButton?: boolean;
   isRefreshing?: boolean;
   onRefresh?: () => void;
@@ -21,6 +23,7 @@ export function AppHeader({
   onNavigateToChat,
   onGetStarted,
   onGoToDashboard,
+  onSkipToDashboard,
   showRefreshButton,
   isRefreshing,
   onRefresh
@@ -46,6 +49,8 @@ export function AppHeader({
   const LandingButtons = () => (
     <>
       <Button variant="ghost" onClick={onNavigateToMarket}>Market Data</Button>
+      {/* The "Dev: Go to Dashboard" button is now part of this component */}
+      <Button variant="outline" onClick={onSkipToDashboard}>Dev: Go to Dashboard</Button>
       <Button onClick={onGetStarted} className="get-started-btn">Get Started</Button>
     </>
   );

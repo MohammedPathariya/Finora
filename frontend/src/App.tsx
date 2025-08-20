@@ -4,7 +4,7 @@ import { Onboarding, UserData } from './components/Onboarding.tsx';
 import { Dashboard } from './components/Dashboard.tsx';
 import { MarketDataPage, ETFData } from './components/MarketDataPage.tsx';
 import { ChatPage } from './components/ChatPage.tsx';
-import { AppHeader } from './components/AppHeader.tsx'; // Import the new header
+import { AppHeader } from './components/AppHeader.tsx';
 
 type AppState = 'landing' | 'onboarding' | 'dashboard' | 'marketData' | 'chat';
 
@@ -59,7 +59,6 @@ export default function App() {
     if (userData) {
       setCurrentState('dashboard');
     } else {
-      // Fallback in case user data is lost
       setCurrentState('onboarding');
     }
   };
@@ -67,23 +66,45 @@ export default function App() {
   const handleGoToChat = () => {
     setCurrentState('chat');
   };
+
+  // The developer shortcut function is restored here
+  const handleSkipToDashboard = async () => {
+    try {
+      const response = await fetch('http://127.0.0.1:5000/onboard/1');
+      if (!response.ok) {
+        throw new Error('Could not fetch profile for user 1. Make sure the user exists in your database.');
+      }
+      const profileData = await response.json();
+      const transformedData: UserData = {
+        name: profileData.name,
+        age: profileData.age,
+        investmentAmount: profileData.investment_amount,
+        timeHorizon: profileData.time_horizon,
+        riskTolerance: profileData.risk_tolerance,
+        investmentGoals: profileData.investment_goals.split(', '),
+        experience: profileData.experience,
+        income: 50000, 
+      };
+      setUserData(transformedData);
+      setCurrentState('dashboard');
+    } catch (error) {
+      console.error(error);
+      alert(error);
+    }
+  };
   
-  // This function now just renders the main content area for the current page
   const renderContent = () => {
     switch (currentState) {
       case 'landing':
         return <LandingPage onGetStarted={handleGetStarted} />;
       
       case 'onboarding':
-        // The onboarding form is a full-screen experience
         return <Onboarding onComplete={handleOnboardingComplete} onBack={handleBackToLanding} />;
       
       case 'dashboard':
-        // The dashboard now only needs the user's data
         return userData ? <Dashboard userData={userData} /> : <LandingPage onGetStarted={handleGetStarted} />;
 
       case 'marketData':
-        // The market page only needs the data itself
         return <MarketDataPage etfs={marketData} isLoading={isMarketDataLoading} error={marketDataError} />;
       
       case 'chat':
@@ -96,9 +117,6 @@ export default function App() {
 
   return (
     <>
-      {/* The AppHeader is now rendered here, outside the pages.
-        It is conditionally hidden during the onboarding flow.
-      */}
       {currentState !== 'onboarding' && (
         <AppHeader
           variant={!userData ? 'landing' : 'loggedIn'}
@@ -107,6 +125,7 @@ export default function App() {
           onNavigateToMarket={handleGoToMarketData}
           onNavigateToChat={handleGoToChat}
           onGoToDashboard={handleGoToDashboard}
+          onSkipToDashboard={handleSkipToDashboard} // Pass the function to the header
           showRefreshButton={currentState === 'marketData'}
           isRefreshing={isMarketDataLoading}
           onRefresh={fetchMarketData}
