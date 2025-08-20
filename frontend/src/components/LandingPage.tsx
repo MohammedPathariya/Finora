@@ -1,59 +1,30 @@
 import { Button } from "./ui/button.tsx";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card.tsx";
 import { Badge } from "./ui/badge.tsx";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card.tsx";
 import { TrendingUp, Shield, Brain, BarChart3, Users } from "lucide-react";
 import './LandingPage.css';
 
-// The props interface accepts both functions from App.tsx
+// The props are now simpler, as the header is handled globally.
 interface LandingPageProps {
   onGetStarted: () => void;
-  onSkipToDashboard: () => void;
-  onNavigateToMarket: () => void;
 }
 
-export function LandingPage({ onGetStarted, onSkipToDashboard, onNavigateToMarket }: LandingPageProps) {
+export function LandingPage({ onGetStarted }: LandingPageProps) {
   return (
-    <div className="landing-page">
-      {/* Header */}
-      <header className="header">
-        <div className="container">
-          <div className="header-content">
-            <div className="logo">
-              <img src="/logo10.png" alt="Finora Logo" style={{ height: '42px' }} />
-            </div>
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <Button onClick={onNavigateToMarket} variant="ghost">
-                Market Data
-              </Button>
-              {/* Development-only button to skip onboarding */}
-              <Button onClick={onSkipToDashboard} variant="outline">
-                Dev: Go to Dashboard
-              </Button>
-              <Button onClick={onGetStarted} className="get-started-btn">
-                Get Started
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Hero Section */}
+    <div className="landing-page-content">
+      {/* The old <header> section is now completely removed from this file */}
+      
       <section className="container hero-section">
+        <Badge className="hero-badge">AI-Powered Wealth Planning</Badge>
         <h1 className="hero-title" style={{ lineHeight: 1.2 }}>
           Personalized Wealth Planning, Powered by AI
         </h1>
-        <p className="hero-subtitle">
-          Your path to clear, confident investing
-        </p>
+        <p className="hero-subtitle">Your path to clear, confident investing</p>
         <p className="hero-description">
           AI-powered guidance, real market data, and personalized financial planning — built for people, not portfolios.
         </p>
         <div className="hero-actions">
-          <Button
-            onClick={onGetStarted}
-            size="lg"
-            className="get-started-btn large-btn"
-          >
+          <Button onClick={onGetStarted} size="lg" className="get-started-btn large-btn">
             Start Your Financial Journey
           </Button>
           <Button variant="outline" size="lg" className="large-btn">
@@ -62,17 +33,13 @@ export function LandingPage({ onGetStarted, onSkipToDashboard, onNavigateToMarke
         </div>
       </section>
 
-      {/* Features Section */}
       <section className="container features-section">
         <div className="section-title">
-          <h2 className="section-heading">
-            Why Choose Finora?
-          </h2>
+          <h2 className="section-heading">Why Choose Finora?</h2>
           <p className="section-subheading">
             We make investing accessible for everyone, from first-time investors to experienced professionals.
           </p>
         </div>
-
         <div className="features-grid">
           <Card className="feature-card">
             <CardHeader style={{textAlign: 'center'}}>
@@ -87,7 +54,6 @@ export function LandingPage({ onGetStarted, onSkipToDashboard, onNavigateToMarke
               </CardDescription>
             </CardContent>
           </Card>
-
           <Card className="feature-card">
             <CardHeader style={{textAlign: 'center'}}>
               <div className="feature-icon-wrapper icon-chart">
@@ -101,7 +67,6 @@ export function LandingPage({ onGetStarted, onSkipToDashboard, onNavigateToMarke
               </CardDescription>
             </CardContent>
           </Card>
-
           <Card className="feature-card">
             <CardHeader style={{textAlign: 'center'}}>
               <div className="feature-icon-wrapper icon-shield">
@@ -118,18 +83,14 @@ export function LandingPage({ onGetStarted, onSkipToDashboard, onNavigateToMarke
         </div>
       </section>
 
-      {/* How It Works Section */}
       <section className="how-it-works-section">
         <div className="container">
           <div className="section-title">
-            <h2 className="section-heading">
-              How Finora Works
-            </h2>
+            <h2 className="section-heading">How Finora Works</h2>
             <p className="section-subheading">
               Get started with personalized wealth planning in just a few simple steps.
             </p>
           </div>
-
           <div className="how-it-works-grid">
             <div className="step">
               <div className="step-icon-wrapper step-icon-1">
@@ -138,7 +99,6 @@ export function LandingPage({ onGetStarted, onSkipToDashboard, onNavigateToMarke
               <h3 className="step-title">1. Tell Us About You</h3>
               <p className="step-description">Share your age, income, financial goals, and risk preferences.</p>
             </div>
-
             <div className="step">
               <div className="step-icon-wrapper step-icon-2">
                 <Brain className="step-icon" />
@@ -146,7 +106,6 @@ export function LandingPage({ onGetStarted, onSkipToDashboard, onNavigateToMarke
               <h3 className="step-title">2. AI Analysis</h3>
               <p className="step-description">Our AI analyzes your profile and market conditions to create your plan.</p>
             </div>
-
             <div className="step">
               <div className="step-icon-wrapper step-icon-3">
                 <BarChart3 className="step-icon" />
@@ -154,7 +113,6 @@ export function LandingPage({ onGetStarted, onSkipToDashboard, onNavigateToMarke
               <h3 className="step-title">3. Get Your Plan</h3>
               <p className="step-description">Receive personalized ETF recommendations with clear explanations.</p>
             </div>
-
             <div className="step">
               <div className="step-icon-wrapper step-icon-4">
                 <TrendingUp className="step-icon" />
@@ -166,24 +124,16 @@ export function LandingPage({ onGetStarted, onSkipToDashboard, onNavigateToMarke
         </div>
       </section>
 
-      {/* CTA Section */}
       <section className="container cta-section">
-        <h2 className="section-heading">
-          Ready to Start Building Your Wealth?
-        </h2>
+        <h2 className="section-heading">Ready to Start Building Your Wealth?</h2>
         <p className="section-subheading" style={{marginBottom: '2rem'}}>
           Join thousands of people who are already using Finora to make smarter investment decisions.
         </p>
-        <Button
-          onClick={onGetStarted}
-          size="lg"
-          className="get-started-btn large-btn"
-        >
+        <Button onClick={onGetStarted} size="lg" className="get-started-btn large-btn">
           Get Started for Free
         </Button>
       </section>
 
-      {/* Footer */}
       <footer className="footer">
         <div className="container footer-content">
           <div className="footer-logo">

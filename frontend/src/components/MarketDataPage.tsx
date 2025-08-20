@@ -1,18 +1,8 @@
 import { useMemo, useState } from "react";
-import { Button } from "./ui/button.tsx";
 import { Input } from "./ui/input.tsx";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "./ui/table.tsx";
-import { RefreshCw } from "lucide-react";
 import './Dashboard.css';
 import './MarketDataPage.css';
-
-interface MarketDataPageProps {
-  onBack: () => void;
-  etfs: ETFData[];
-  isLoading: boolean;
-  error: string | null;
-  onRefresh: () => void;
-}
 
 export interface ETFData {
   symbol: string;
@@ -25,7 +15,14 @@ export interface ETFData {
   sharpe_ratio: number;
 }
 
-export function MarketDataPage({ onBack, etfs, isLoading, error, onRefresh }: MarketDataPageProps) {
+// The props are now simpler, only receiving the data to display
+interface MarketDataPageProps {
+  etfs: ETFData[];
+  isLoading: boolean;
+  error: string | null;
+}
+
+export function MarketDataPage({ etfs, isLoading, error }: MarketDataPageProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: keyof ETFData; direction: 'ascending' | 'descending' } | null>({
     key: 'symbol',
@@ -157,22 +154,7 @@ export function MarketDataPage({ onBack, etfs, isLoading, error, onRefresh }: Ma
 
   return (
     <div className="dashboard-page">
-      <header className="dashboard-header">
-        <div className="container header-content">
-          <div className="header-left">
-            <Button variant="ghost" onClick={onBack}>
-              ← Back to Home
-            </Button>
-            <div className="logo">
-               <img src="/logo.png" alt="Finora Logo" style={{ height: '36px' }} />
-            </div>
-          </div>
-          <Button variant="outline" onClick={onRefresh} disabled={isLoading}>
-              <RefreshCw style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} />
-              {isLoading ? 'Refreshing...' : 'Refresh Data'}
-          </Button>
-        </div>
-      </header>
+      {/* The old <header> is GONE */}
       <div className="container dashboard-body">
         <div className="welcome-section">
           <h1 className="welcome-title">Live US ETF Market Data</h1>

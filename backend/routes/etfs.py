@@ -1,7 +1,8 @@
 from flask import Blueprint, jsonify
+from datetime import datetime
 from services.market_service import (
     get_etf_metadata_from_db,
-    get_live_prices_from_fmp,
+    get_latest_prices_from_db,
     get_historical_data_for_period,
     calculate_ytd_return,
     calculate_historical_return,
@@ -19,16 +20,19 @@ def get_top_etf_data():
             return jsonify({"error": "No ETFs found in database."}), 404
         
         symbols = [etf['symbol'] for etf in etf_metadata]
-        live_prices = get_live_prices_from_fmp(symbols)
+        
+        # Call the new function to get prices from our database
+        latest_prices = get_latest_prices_from_db(symbols)
         
         response_data = []
         for etf in etf_metadata:
             symbol = etf['symbol']
-            current_price = live_prices.get(symbol)
+            current_price = latest_prices.get(symbol)
             
             # Fetch data for the last year (365 days) and for YTD
             historical_data_1yr = get_historical_data_for_period(symbol, 365)
-            historical_data_ytd = get_historical_data_for_period(symbol, 240) # Approx days in year so far
+            # A simple way to get YTD data is to also just use the 1yr data and let the function find the start of the year
+            historical_data_ytd = get_yearly_historical_data_from_db(symbol)
 
             # Perform calculations
             one_year_return = calculate_historical_return(historical_data_1yr)
@@ -52,3 +56,11 @@ def get_top_etf_data():
     except Exception as e:
         print(f"An error occurred in the market data endpoint: {e}")
         return jsonify({"error": "An internal server error occurred."}), 500
+
+
+# Helper alias to keep the code clean, as both functions are now the same
+def get_yearly_historical_data_from_db(symbol: str) -> list:
+    today = datetime.now().date()
+    start_of_year = datetime(today.year, 1, 1).date()
+    days_since_start_of_year = (today - start_of_year).days
+    return get_historical_data_for_period(symbol, days_since_start_of_year)

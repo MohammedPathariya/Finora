@@ -10,14 +10,12 @@ import {
   DollarSign,
   Target,
   PieChart,
-  Info,
-  Lightbulb,
-  MessageSquare
+  Lightbulb
 } from "lucide-react";
 import { UserData } from "./Onboarding.tsx";
-import { HistoricalChart } from "./HistoricalChart.tsx"; // 1. Import the new chart component
+import { HistoricalChart } from "./HistoricalChart.tsx";
 import './Dashboard.css';
-import './MarketDataPage.css'; // Re-using loading/error styles
+import './MarketDataPage.css';
 
 interface RecommendedETF {
   symbol: string;
@@ -25,7 +23,7 @@ interface RecommendedETF {
   category: string;
   allocation: number;
   investment_amount: number;
-  historical_data: { date: string, close_price: number }[]; // 2. Add historical data to the interface
+  historical_data: { date: string, close_price: number }[];
 }
 
 interface PortfolioProjection {
@@ -43,15 +41,12 @@ interface PortfolioResponse {
   projections: PortfolioProjection[];
 }
 
+// The props are now much simpler
 interface DashboardProps {
   userData: UserData;
-  onBack: () => void;
-  onGoHome: () => void;
-  onNavigateToMarket: () => void;
-  onNavigateToChat: () => void;
 }
 
-export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNavigateToChat }: DashboardProps) {
+export function Dashboard({ userData }: DashboardProps) {
   const [activeView, setActiveView] = useState("overview");
   const firstName = userData.name.split(' ')[0];
 
@@ -93,43 +88,21 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
   }, [userData]);
 
   if (isLoading) {
-    return <div className="loading-container" style={{height: '100vh'}}>Generating Your Personalized Plan & Projections...</div>;
+    // Adjusted height to account for the global header
+    return <div className="loading-container" style={{height: 'calc(100vh - 75px)'}}>Generating Your Personalized Plan...</div>;
   }
 
   if (error || !portfolio) {
+    // The user can now use the global header to navigate away from an error
     return <div className="error-container" style={{margin: '2rem'}}>
         <h2>Could Not Generate Plan</h2>
         <p>Error: {error || "An unknown error occurred."}</p>
-        <Button onClick={onBack} style={{marginTop: '1rem'}}>Go Back</Button>
     </div>;
   }
   
   return (
     <div className="dashboard-page">
-      <header className="dashboard-header">
-        <div className="container header-content">
-          <div className="header-left">
-            <div className="logo" onClick={onGoHome} style={{ cursor: 'pointer' }}>
-              <img src="/logo.png" alt="Finora Logo" style={{ height: '36px' }} />
-            </div>
-            <Button variant="ghost" onClick={onBack}>
-              ← Back to Onboarding
-            </Button>
-            <Button variant="ghost" onClick={onNavigateToMarket}>
-              Market Data
-            </Button>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <Button variant="outline" onClick={onNavigateToChat}>
-                <MessageSquare style={{ width: '1rem', height: '1rem', marginRight: '0.5rem' }} />
-                Chat with AI
-            </Button>
-            <Badge className="status-badge">
-              Plan Generated
-            </Badge>
-          </div>
-        </div>
-      </header>
+      {/* The old <header> section is now GONE */}
 
       <div className="container dashboard-body">
         <div className="welcome-section">
@@ -254,7 +227,6 @@ export function Dashboard({ userData, onBack, onGoHome, onNavigateToMarket, onNa
                           <p className="etf-detail-value">${etf.investment_amount.toLocaleString()}</p>
                         </div>
                       </div>
-                      {/* 3. Add the new chart component here */}
                       <h4 style={{ fontWeight: 500, fontSize: '0.875rem', borderTop: '1px solid #eee', paddingTop: '1rem' }}>
                         1-Year Performance
                       </h4>

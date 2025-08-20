@@ -4,11 +4,8 @@ import { Onboarding, UserData } from './components/Onboarding.tsx';
 import { Dashboard } from './components/Dashboard.tsx';
 import { MarketDataPage, ETFData } from './components/MarketDataPage.tsx';
 import { ChatPage } from './components/ChatPage.tsx';
+import { AppHeader } from './components/AppHeader.tsx'; // Import the new header
 
-
-
-
-// 1. Add 'chat' to the possible app states
 type AppState = 'landing' | 'onboarding' | 'dashboard' | 'marketData' | 'chat';
 
 export default function App() {
@@ -58,70 +55,66 @@ export default function App() {
     setUserData(null);
   };
 
-  const handleBackToOnboarding = () => {
-    setCurrentState('onboarding');
-  };
-
-  // 2. Add handlers for chat navigation
-  const handleGoToChat = () => {
-    setCurrentState('chat');
-  };
-  const handleBackToDashboard = () => {
-    setCurrentState('dashboard');
-  };
-
-  const handleSkipToDashboard = async () => {
-    try {
-      const response = await fetch('http://127.0.0.1:5000/onboard/1');
-      if (!response.ok) {
-        throw new Error('Could not fetch profile for user 1. Make sure the user exists in your database.');
-      }
-      const profileData = await response.json();
-      const transformedData: UserData = {
-        name: profileData.name,
-        age: profileData.age,
-        investmentAmount: profileData.investment_amount,
-        timeHorizon: profileData.time_horizon,
-        riskTolerance: profileData.risk_tolerance,
-        investmentGoals: profileData.investment_goals.split(', '),
-        experience: profileData.experience,
-        income: 50000, 
-      };
-      setUserData(transformedData);
+  const handleGoToDashboard = () => {
+    if (userData) {
       setCurrentState('dashboard');
-    } catch (error) {
-      console.error(error);
-      alert(error);
+    } else {
+      // Fallback in case user data is lost
+      setCurrentState('onboarding');
     }
   };
 
-  switch (currentState) {
-    case 'landing':
-      return <LandingPage onGetStarted={handleGetStarted} onSkipToDashboard={handleSkipToDashboard} onNavigateToMarket={handleGoToMarketData} />;
-    
-    case 'onboarding':
-      return <Onboarding onComplete={handleOnboardingComplete} onBack={handleBackToLanding} />;
-    
-    case 'dashboard':
-      // 3. Pass the new chat handler to the Dashboard
-      return userData ? <Dashboard userData={userData} onBack={handleBackToOnboarding} onGoHome={handleBackToLanding} onNavigateToMarket={handleGoToMarketData} onNavigateToChat={handleGoToChat} /> : null;
+  const handleGoToChat = () => {
+    setCurrentState('chat');
+  };
+  
+  // This function now just renders the main content area for the current page
+  const renderContent = () => {
+    switch (currentState) {
+      case 'landing':
+        return <LandingPage onGetStarted={handleGetStarted} />;
+      
+      case 'onboarding':
+        // The onboarding form is a full-screen experience
+        return <Onboarding onComplete={handleOnboardingComplete} onBack={handleBackToLanding} />;
+      
+      case 'dashboard':
+        // The dashboard now only needs the user's data
+        return userData ? <Dashboard userData={userData} /> : <LandingPage onGetStarted={handleGetStarted} />;
 
-    case 'marketData':
-      return (
-        <MarketDataPage 
-          onBack={handleBackToLanding}
-          etfs={marketData}
-          isLoading={isMarketDataLoading}
-          error={marketDataError}
+      case 'marketData':
+        // The market page only needs the data itself
+        return <MarketDataPage etfs={marketData} isLoading={isMarketDataLoading} error={marketDataError} />;
+      
+      case 'chat':
+        return <ChatPage />;
+
+      default:
+        return <LandingPage onGetStarted={handleGetStarted} />;
+    }
+  };
+
+  return (
+    <>
+      {/* The AppHeader is now rendered here, outside the pages.
+        It is conditionally hidden during the onboarding flow.
+      */}
+      {currentState !== 'onboarding' && (
+        <AppHeader
+          variant={!userData ? 'landing' : 'loggedIn'}
+          onGoHome={handleBackToLanding}
+          onGetStarted={handleGetStarted}
+          onNavigateToMarket={handleGoToMarketData}
+          onNavigateToChat={handleGoToChat}
+          onGoToDashboard={handleGoToDashboard}
+          showRefreshButton={currentState === 'marketData'}
+          isRefreshing={isMarketDataLoading}
           onRefresh={fetchMarketData}
         />
-      );
-
-    // 4. Add a new case to render the ChatPage
-    case 'chat':
-      return <ChatPage onBack={handleBackToDashboard} />;
-    
-    default:
-      return <LandingPage onGetStarted={handleGetStarted} onSkipToDashboard={handleSkipToDashboard} onNavigateToMarket={handleGoToMarketData} />;
-  }
+      )}
+      <main>
+        {renderContent()}
+      </main>
+    </>
+  );
 }

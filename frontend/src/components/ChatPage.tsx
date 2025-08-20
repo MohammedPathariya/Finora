@@ -2,20 +2,17 @@ import { useState, useRef, useEffect } from 'react';
 import { Button } from "./ui/button.tsx";
 import { Input } from "./ui/input.tsx";
 import { Send } from 'lucide-react';
-import ReactMarkdown from 'react-markdown'; // 1. Import the new library
+import ReactMarkdown from 'react-markdown';
 import './Dashboard.css';
 import './ChatPage.css';
-
-interface ChatPageProps {
-  onBack: () => void;
-}
 
 interface Message {
   sender: 'user' | 'bot';
   text: string;
 }
 
-export function ChatPage({ onBack }: ChatPageProps) {
+// The component no longer needs any props
+export function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([
     { sender: 'bot', text: "Hello! I'm Finora, your AI financial advisor. How can I help you today?" }
   ]);
@@ -60,23 +57,11 @@ export function ChatPage({ onBack }: ChatPageProps) {
 
   return (
     <div className="chat-page-container">
-      <header className="dashboard-header">
-        <div className="container header-content">
-          <div className="header-left">
-            <Button variant="ghost" onClick={onBack}>
-              ← Back to Dashboard
-            </Button>
-            <div className="logo">
-              <img src="/logo.png" alt="Finora Logo" style={{ height: '36px' }} />
-            </div>
-          </div>
-        </div>
-      </header>
+      {/* The old <header> section is GONE */}
 
       <div className="chat-window">
         {messages.map((msg, index) => (
           <div key={index} className={`chat-bubble ${msg.sender === 'user' ? 'user-bubble' : 'bot-bubble'}`}>
-            {/* 2. Use the ReactMarkdown component to render the text */}
             <ReactMarkdown>{msg.text}</ReactMarkdown>
           </div>
         ))}

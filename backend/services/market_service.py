@@ -10,10 +10,10 @@ from dotenv import load_dotenv
 load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-FMP_API_KEY = os.getenv("FMP_API_KEY")
 
-if not all([SUPABASE_URL, SUPABASE_KEY, FMP_API_KEY]):
-    raise ValueError("API keys and Supabase credentials must be set in .env file")
+# FMP API Key is no longer needed here
+if not all([SUPABASE_URL, SUPABASE_KEY]):
+    raise ValueError("Supabase credentials must be set in .env file")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -24,20 +24,28 @@ def get_etf_metadata_from_db():
     response = supabase.table('etfs').select('symbol, name, expense_ratio').execute()
     return response.data if response.data else []
 
-def get_live_prices_from_fmp(symbols: list) -> dict:
-    """Fetches the current price for a list of symbols from FMP in a single call."""
+def get_latest_prices_from_db(symbols: list) -> dict:
+    """
+    Fetches the most recent closing price for each symbol from our Supabase cache.
+    """
     if not symbols:
         return {}
-    symbol_str = ",".join(symbols)
-    url = f"https://financialmodelingprep.com/api/v3/quote-short/{symbol_str}?apikey={FMP_API_KEY}"
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
-        return {item['symbol']: item['price'] for item in data}
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching live prices from FMP: {e}")
-        return {}
+    
+    prices = {}
+    for symbol in symbols:
+        # For each symbol, get the latest entry from the historical data table
+        response = supabase.table('etf_historical_data') \
+            .select('close_price') \
+            .eq('symbol', symbol) \
+            .order('date', desc=True) \
+            .limit(1) \
+            .execute()
+        
+        if response.data:
+            prices[symbol] = float(response.data[0]['close_price'])
+    
+    print(f"Fetched latest prices for {len(prices)} symbols from DB cache.")
+    return prices
 
 def get_historical_data_for_period(symbol: str, days: int) -> list:
     """Gets cached historical data for a symbol for a specific past period."""
