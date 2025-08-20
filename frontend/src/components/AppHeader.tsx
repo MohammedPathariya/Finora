@@ -36,7 +36,6 @@ export function AppHeader({
           </Button>
           
           {isLoggedIn ? (
-            // MODIFIED: Changed variant from 'outline' to 'ghost' for consistency
             <Button variant="ghost" onClick={onGoToDashboard}>Dashboard</Button>
           ) : (
             <>
