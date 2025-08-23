@@ -1,42 +1,37 @@
-✅ Completed Phases
-Phase 1: Backend Foundation & Data Pipeline
-You've successfully built a backend that is far more robust than the original plan.
+The Updated Finora Project Roadmap
 
-Flask App Structure: Clean routes/ and services/ structure is in place.
 
-Core API Endpoints: /health, /onboard, /chat, and /api/etfs/market-data are all live and functional.
+✅ Phase 1: Core Product Foundation & MVP (Completed)
+This phase represents all the work you have successfully completed to date. You have built a feature-complete and highly functional application that significantly exceeds the initial MVP goals.
 
-Hybrid Data System: Instead of just one API, you built a superior system using Yahoo Finance for historical data and FMP for live prices.
+Backend: A robust Flask backend with a clean, service-oriented architecture is complete. It features an intelligent, multi-factor recommendation engine, a sophisticated Monte Carlo simulation for projections, and a highly efficient data pipeline using Supabase as a persistent cache.
 
-Database Caching: You have a smart scraping script and a normalized Supabase database that efficiently caches historical data.
+Frontend: A polished React (TypeScript) single-page application is fully functional. It includes a custom UI component library built upon accessible Radix UI primitives, a well-designed multi-step onboarding wizard, and a data-rich dashboard that is fully integrated with all backend services.
 
-CORS: Is fully configured and working.
+Current State: The Finora application is a demonstrable success in a local development environment, proving the viability of the core concept and technology stack.
 
 
 
 
 
-Phase 2: Frontend UI & Core Logic
-All the foundational UI components and pages are built and connected.
-
-React Components: The Onboarding, Dashboard, Chat, and MarketDataPage are all complete.
-
-State-Based Navigation: The app correctly navigates between all pages.
-
-UI/UX Polish: The app has a consistent brand identity (Finora logo, colors), and includes key UX features like loading states, error handling, and client-side caching.
 
 
 
 
+🚀 Phase 2: Foundational Hardening & Architectural Refactoring
+Goal: Address critical technical debt and improve the core maintainability of the application before scaling up data or features.
 
-Phase 3: Intelligent Recommendation & Projection Engine
-This is the "brains" of your application, and it's fully operational.
+Tasks:
 
-Nuanced Recommendation Engine: You replaced the simple risk-level mapping with an intelligent engine that uses a user's entire profile to generate a truly personalized portfolio.
+Implement Frontend Routing: Replace the useState-based navigation with React Router for a more scalable and robust user experience.
 
-Data-Driven Projections: You replaced the mock projections with a Monte Carlo simulation that runs on the user's actual recommended portfolio.
+Externalize Configuration: Remove hardcoded API URLs and manage them with environment variables.
 
-Full Backend Integration: The dashboard is now 100% data-driven, fetching both the recommendation and projections in a single, efficient API call.
+Containerize the Backend: Create a Dockerfile for the Flask application to ensure a consistent and reproducible environment.
+
+Improve Code Documentation: Add detailed docstrings and comments to explain complex logic, especially in the recommendation engine.
+
+NEW — ETF Universe Management: Create a dedicated script or simple admin process to manage the list of ETFs in the Supabase etfs table. This makes it easy to add, remove, or update the securities the application tracks without manual database edits, preparing for the expansion in Phase 4.
 
 
 
@@ -47,45 +42,92 @@ Full Backend Integration: The dashboard is now 100% data-driven, fetching both t
 
 
 
+📈 Phase 3: Testing, Validation, & Automation
+Goal: Build a comprehensive, automated testing suite and CI/CD pipeline. This non-negotiable phase ensures that as the application scales in data and complexity, its quality and reliability remain high.
 
+Tasks:
 
-🚀 Next Phases: What's Remaining
+Backend Unit & Integration Testing (pytest): Write tests for all backend services, with a focus on validating financial calculations and edge cases.
 
-Now that the core application is built, the remaining work is focused on adding high-impact features and preparing for launch.
+Frontend Component & Integration Testing (Jest & RTL): Write tests for the UI library and key user flows like onboarding.
 
-Phase 4: Advanced Data Visualization
-The goal is to visually represent the rich historical data you've collected.
-
-Install a Charting Library: Choose and install a library like Recharts or Chart.js (npm install recharts).
-
-Create a Historical Performance Chart: Build a new component that displays a line chart of an ETF's price over the last year.
-
-Integrate Charts: Add this new chart component to the MarketDataPage (perhaps in a modal when a user clicks a row) and to the Dashboard for each recommended ETF.
+Establish CI/CD Pipeline (GitHub Actions): Create a workflow that automatically runs the entire test suite on every code push, preventing bugs from being merged.
 
 
 
 
 
-Phase 5: Implementing Core User Actions
-This phase focuses on making the action buttons on the dashboard functional.
-
-"Download Plan PDF": Create a backend endpoint that takes a portfolio and generates a simple PDF report that the user can download.
-
-"Connect Your Brokerage Account": Research and integrate a service like Plaid that allows users to securely connect their financial accounts. This is a very advanced feature.
-
-"Schedule a Call": Link this button to an external scheduling service like Calendly.
 
 
 
 
 
-Phase 6: Documentation & Deployment
-The final step is to prepare the project for the public.
+✨ Phase 4: Advanced Features & Data Expansion
+Goal: With a stable and tested foundation, confidently build new user-facing features and significantly expand the application's data capabilities.
 
-Write the README: Create a detailed README.md file with setup instructions, screenshots, and a description of how the application works.
+Tasks:
 
-Deploy the Backend: Deploy your Flask application to a cloud service like Render or Heroku.
+Advanced Data Visualization: Integrate the HistoricalChart component into the MarketDataPage to provide richer, more immediate visual feedback.
 
-Deploy the Frontend: Deploy your React application to a service like Vercel or Netlify.
+Implement Core User Actions: Build the "Download Plan PDF" and "Schedule a Call" features on the dashboard.
 
-Final Configuration: Update the API URLs in your frontend code to point to your live backend server.
+NEW — Expand ETF Universe: Increase the number of tracked ETFs from ~100 to 500+. Use the management script from Phase 2 to populate the new securities. Profile the backend to ensure performance remains acceptable during recommendation generation with the larger dataset.
+
+NEW — Integrate Real-Time Data:
+
+Select and subscribe to a live market data API (e.g., Finnhub, Polygon.io).
+
+Create a new, lean backend endpoint (e.g., /api/prices/live) that fetches real-time quotes from this new provider.
+
+Update the frontend Dashboard and MarketDataPage to periodically call this endpoint, displaying live price updates and more dynamic "YTD Return" calculations. The cached data will still be used for historical charts and initial page loads.
+
+
+
+
+
+
+
+
+
+
+🌍 Phase 5: Production Deployment & Automation
+Goal: Push the fully-featured, tested, and data-rich application to a live, public URL and automate its maintenance.
+
+Tasks:
+
+Deploy Backend & Frontend: Deploy the containerized backend to Render and the frontend to Vercel, configuring all production environment variables.
+
+NEW — Automate Historical Data Collection: Set up a Cron Job (e.g., Render Cron Jobs) to run the populate_historical_data.py script automatically on a daily schedule. This ensures your application's historical data stays fresh without any manual intervention.
+
+Finalize Documentation: Write the comprehensive README.md with a link to the live demo, architecture diagrams, and setup instructions.
+
+Basic Monitoring: Set up uptime monitoring for the live application endpoints.
+
+
+
+
+
+
+
+
+
+
+
+🔮 Future Phases (Post-Launch)
+After the core ETF product is successfully launched and automated, you can focus on major product expansions.
+
+Asset Class Expansion:
+
+Individual Stocks: Add a new module to the recommendation engine for selecting individual stocks, using different metrics (e.g., P/E ratio, market cap) than those used for ETFs.
+
+Commodities & Alternatives: Integrate data sources for assets like Gold (GLD), Silver (SLV), and Cryptocurrencies (IBIT). This will require adding new "Alternative" categories to the asset allocation models.
+
+Real Estate: Incorporate Real Estate Investment Trusts (REITs) as a distinct asset class within the stock/ETF framework.
+
+User Accounts & Personalization:
+
+Implement user authentication and persistent profiles.
+
+Allow users to save, name, and compare different investment plans.
+
+Track the actual performance of a user's plan over time.
