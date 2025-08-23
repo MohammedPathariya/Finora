@@ -131,3 +131,102 @@ Implement user authentication and persistent profiles.
 Allow users to save, name, and compare different investment plans.
 
 Track the actual performance of a user's plan over time.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Finora 2.0: Roadmap to a Premier AI-Powered Financial Advisor
+This plan focuses on three core themes: making the advice Holistic, making the AI Proactive, and making the insights Actionable.
+
+Finora 1.0 is Live
+This roadmap begins after you have completed the initial 5-phase plan. Your application is deployed, tested, containerized, and has an automated CI/CD pipeline and data collection script.
+
+🚀 Phase 6: User Persistence & Goal-Based Investing
+Goal: Evolve Finora from a single-session calculator into a persistent, multi-goal planning tool that users can return to.
+
+Tasks:
+
+Implement User Authentication: Integrate a full authentication system (e.g., Supabase Auth) to allow users to sign up, log in, and securely save their data.
+
+Persistent User Profiles: Link all onboarding data and generated plans to a user's account in the database. When a user logs in, they should see their existing plan immediately.
+
+Introduce Goal-Based Investing: Upgrade the frontend and backend to allow users to define multiple, distinct financial goals (e.g., "Retirement" in 30 years, "House Down Payment" in 7 years).
+
+Develop Sub-Portfolio Logic: Enhance the recommendation_service to generate a unique, risk-adjusted ETF portfolio for each goal. The retirement portfolio might be aggressive (9/10 risk), while the house fund would be much more conservative (3/10 risk). The dashboard will now show an overview and allow the user to drill down into each goal's specific plan.
+
+
+
+
+
+
+
+
+
+
+
+
+✨ Phase 7: The Proactive AI Advisory Engine
+Goal: Transform the AI from a reactive Q&A bot into a proactive, intelligent advisor that provides unsolicited, personalized insights.
+
+Tasks:
+
+Build the "AI Financial Health Check": Create a new dashboard feature where a user can input their broader financial picture (savings, debt, monthly expenses). An "AI Analyst" agent will then process this data and provide a holistic report in natural language, identifying strengths and weaknesses (e.g., "Your emergency fund is well-funded, but your savings rate could be higher to meet your retirement goal on time.").
+
+Create a Proactive Insights Engine: Develop a backend service that runs periodically. This service will scan market events or changes in a user's portfolio and generate helpful, non-alarming notifications.
+
+Behavioral Nudges: "Market volatility is high this week. Historically, staying invested during downturns has been a successful strategy. Here's a reminder of why your portfolio is diversified."
+
+Opportunity Alerts: "A new, lower-cost S&P 500 ETF has been released. It is very similar to one in your portfolio but has a lower expense ratio. You might consider looking into it."
+
+Implement AI-Powered Scenario Planning: Create an interactive tool where users can ask "what-if" questions. The frontend will pass these to the backend, which will run new simulations and use an LLM to explain the results:
+
+"What if I increase my monthly investment by $300?"
+
+"Show me the impact of retiring 5 years earlier."
+
+
+
+
+
+
+
+
+
+
+
+
+📈 Phase 8: Deep Analytics & Real-World Integration
+Goal: Build unshakeable user trust by grounding your recommendations in deep historical data and connecting the plan to the user's actual financial life.
+
+Tasks:
+
+Build a Portfolio Backtesting Tool: This is a truly impressive feature. Create a service that takes a user's recommended Finora portfolio and simulates its performance against historical data (e.g., for the last 10 years). The results can be benchmarked against the S&P 500 to demonstrate the value of diversification.
+
+Implement Portfolio Drift & Rebalancing Alerts: Create a module that tracks the user's target allocation vs. their actual allocation over time. When the portfolio "drifts" significantly (e.g., stocks grow to be 70% of the portfolio instead of the target 60%), the system will alert the user and explain how to rebalance.
+
+Integrate with Plaid for Live Financial Data: This is the ultimate feature to make the project "worth it." Integrating the Plaid API will allow users to securely connect their real-life bank and brokerage accounts. This enables:
+
+Automated Net Worth Tracking: The dashboard can show a live, holistic view of the user's finances.
+
+Automated Financial Health Check: The AI agent from Phase 7 can now work with real data, providing much more accurate insights.
+
+Real Portfolio Tracking: Instead of just a plan, Finora can now track the actual performance of the user's investments.
+
+By the end of this roadmap, Finora will have evolved from an impressive planner into a premier, AI-powered financial co-pilot. It remains true to your original vision while incorporating the technical depth and complexity of a truly standout graduate-level project.
