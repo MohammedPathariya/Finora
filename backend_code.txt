@@ -1,0 +1,899 @@
+
+--- File: ./frontend/node_modules/flatted/python/flatted.py ---
+# ISC License
+#
+# Copyright (c) 2018-2025, Andrea Giammarchi, @WebReflection
+#
+# Permission to use, copy, modify, and/or distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+# REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+# AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+# INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+# LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
+# OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+# PERFORMANCE OF THIS SOFTWARE.
+
+import json as _json
+
+class _Known:
+    def __init__(self):
+        self.key = []
+        self.value = []
+
+class _String:
+    def __init__(self, value):
+        self.value = value
+
+
+def _array_keys(value):
+    keys = []
+    i = 0
+    for _ in value:
+        keys.append(i)
+        i += 1
+    return keys
+
+def _object_keys(value):
+    keys = []
+    for key in value:
+        keys.append(key)
+    return keys
+
+def _is_array(value):
+    return isinstance(value, (list, tuple))
+
+def _is_object(value):
+    return isinstance(value, dict)
+
+def _is_string(value):
+    return isinstance(value, str)
+
+def _index(known, input, value):
+    input.append(value)
+    index = str(len(input) - 1)
+    known.key.append(value)
+    known.value.append(index)
+    return index
+
+def _loop(keys, input, known, output):
+    for key in keys:
+        value = output[key]
+        if isinstance(value, _String):
+            _ref(key, input[int(value.value)], input, known, output)
+
+    return output
+
+def _ref(key, value, input, known, output):
+    if _is_array(value) and value not in known:
+        known.append(value)
+        value = _loop(_array_keys(value), input, known, value)
+    elif _is_object(value) and value not in known:
+        known.append(value)
+        value = _loop(_object_keys(value), input, known, value)
+
+    output[key] = value
+
+def _relate(known, input, value):
+    if _is_string(value) or _is_array(value) or _is_object(value):
+        try:
+            return known.value[known.key.index(value)]
+        except:
+            return _index(known, input, value)
+
+    return value
+
+def _transform(known, input, value):
+    if _is_array(value):
+        output = []
+        for val in value:
+            output.append(_relate(known, input, val))
+        return output
+
+    if _is_object(value):
+        obj = {}
+        for key in value:
+            obj[key] = _relate(known, input, value[key])
+        return obj
+
+    return value
+
+def _wrap(value):
+    if _is_string(value):
+        return _String(value)
+
+    if _is_array(value):
+        i = 0
+        for val in value:
+            value[i] = _wrap(val)
+            i += 1
+
+    elif _is_object(value):
+        for key in value:
+            value[key] = _wrap(value[key])
+
+    return value
+
+def parse(value, *args, **kwargs):
+    json = _json.loads(value, *args, **kwargs)
+    wrapped = []
+    for value in json:
+        wrapped.append(_wrap(value))
+
+    input = []
+    for value in wrapped:
+        if isinstance(value, _String):
+            input.append(value.value)
+        else:
+            input.append(value)
+
+    value = input[0]
+
+    if _is_array(value):
+        return _loop(_array_keys(value), input, [value], value)
+
+    if _is_object(value):
+        return _loop(_object_keys(value), input, [value], value)
+
+    return value
+
+
+def stringify(value, *args, **kwargs):
+    known = _Known()
+    input = []
+    output = []
+    i = int(_index(known, input, value))
+    while i < len(input):
+        output.append(_transform(known, input, input[i]))
+        i += 1
+    return _json.dumps(output, *args, **kwargs)
+
+--- File: ./frontend/node_modules/shell-quote/print.py ---
+#!/usr/bin/env python3
+import sys
+print(sys.argv[1])
+
+--- File: ./backend/scripts/populate_historical_data.py ---
+import os
+import yfinance as yf
+import pandas as pd
+from datetime import datetime, timedelta
+from dotenv import load_dotenv
+from supabase import create_client, Client
+
+# --- Configuration ---
+load_dotenv()
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise ValueError("Supabase credentials not found in .env file")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# Set a historical start date for the very first scrape
+INITIAL_SCRAPE_START_DATE = "2020-01-01"
+
+def run_scraper():
+    """
+    Fetches the list of ETFs from the database and then scrapes and caches
+    any new historical data for each one.
+    """
+    # 1. Get the list of symbols to track directly from our new 'etfs' table
+    print("Fetching list of ETFs to track from the database...")
+    etfs_response = supabase.table('etfs').select('symbol').execute()
+    if not etfs_response.data:
+        print("No ETFs found in the database. Please populate the 'etfs' table first.")
+        return
+    
+    symbols_to_track = [item['symbol'] for item in etfs_response.data]
+    print(f"Found {len(symbols_to_track)} ETFs to process.")
+
+    for symbol in symbols_to_track:
+        print(f"--- Processing: {symbol} ---")
+        
+        # 2. Find the most recent date we have for this symbol in our database
+        response = supabase.table('etf_historical_data') \
+            .select('date') \
+            .eq('symbol', symbol) \
+            .order('date', desc=True) \
+            .limit(1) \
+            .execute()
+
+        latest_date_in_db = None
+        if response.data:
+            latest_date_in_db = datetime.strptime(response.data[0]['date'], '%Y-%m-%d').date()
+            print(f"Latest data in database: {latest_date_in_db}")
+            start_date = latest_date_in_db + timedelta(days=1)
+        else:
+            print("No existing data found. Starting initial scrape from 2020.")
+            start_date = datetime.strptime(INITIAL_SCRAPE_START_DATE, '%Y-%m-%d').date()
+
+        # 3. Scrape new data from Yahoo Finance
+        today = datetime.now().date()
+        if start_date >= today:
+            print(f"Data for {symbol} is already up to date. Skipping scrape.")
+            continue
+
+        print(f"Scraping new data for {symbol} from {start_date} to {today}...")
+        df = yf.download(symbol, start=start_date, end=today, progress=False, auto_adjust=True)
+
+        if df.empty:
+            print(f"No new data found from Yahoo Finance for {symbol}.")
+            continue
+
+        # 4. Prepare and insert the new records into Supabase
+        records_to_insert = []
+        for date, row in df.iterrows():
+            record = {
+                "symbol": symbol,
+                "date": date.strftime('%Y-%m-%d'),
+                "close_price": round(float(row['Close']), 2)
+            }
+            records_to_insert.append(record)
+
+        if records_to_insert:
+            print(f"Found {len(records_to_insert)} new records to insert.")
+            try:
+                # Use upsert to handle any potential conflicts gracefully, though the date logic should prevent them.
+                _, count = supabase.table('etf_historical_data').upsert(records_to_insert).execute()
+                print(f"Successfully inserted/updated records for {symbol}.")
+            except Exception as e:
+                print(f"An error occurred during insert for {symbol}: {e}")
+
+    print("\n--- Scraping process complete. ---")
+
+if __name__ == "__main__":
+    run_scraper()
+--- File: ./backend/app.py ---
+# backend/app.py
+
+from flask import Flask
+from flask_cors import CORS
+from dotenv import load_dotenv
+
+# Load .env (SUPABASE_URL, SUPABASE_KEY, ALPHA_VANTAGE_KEY, etc.)
+load_dotenv()
+
+from routes.health import health_bp
+from routes.onboarding import onboard_bp
+from routes.chat import chat_bp
+from routes.etfs import etfs_bp
+from routes.recommend import recommend_bp
+
+app = Flask(__name__)
+CORS(app)
+
+# Existing endpoints
+app.register_blueprint(health_bp)
+app.register_blueprint(onboard_bp)
+app.register_blueprint(chat_bp)
+app.register_blueprint(etfs_bp)
+app.register_blueprint(recommend_bp)
+
+@app.route("/")
+def home():
+    return {"message": "Finora backend is running"}
+
+if __name__ == "__main__":
+    app.run(debug=True, port=5000)
+--- File: ./backend/routes/health.py ---
+# backend/routes/health.py
+
+from flask import Blueprint, jsonify
+
+health_bp = Blueprint("health", __name__)
+
+@health_bp.route("/health", methods=["GET"])
+def health():
+    return jsonify(status="ok", service="Finora backend")
+--- File: ./backend/routes/onboarding.py ---
+from flask import Blueprint, request, jsonify
+from services.onboarding_service import create_profile, get_profile, delete_profile
+
+onboard_bp = Blueprint("onboard", __name__)
+
+@onboard_bp.route("/onboard", methods=["POST"])
+def onboard():
+    data = request.get_json() or {}
+    
+    # These field names now exactly match your Supabase table columns
+    required = [
+        "name",
+        "age",
+        "income_range",
+        "investment_amount",
+        "time_horizon",
+        "risk_tolerance",
+        "investment_goals",
+        "experience",
+    ]
+    
+    missing = [f for f in required if f not in data]
+    if missing:
+        return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
+
+    # Backend Validation
+    try:
+        name = str(data["name"])
+        age = int(data["age"])
+        amount = int(data["investment_amount"])
+
+        if not name.strip():
+            return jsonify({"error": "Name cannot be empty."}), 400
+        if not 18 <= age <= 100:
+            return jsonify({"error": "Age must be between 18 and 100."}), 400
+        if amount <= 0:
+            return jsonify({"error": "Investment amount must be a positive number."}), 400
+
+    except (ValueError, TypeError):
+        return jsonify({"error": "Age and investment amount must be valid numbers."}), 400
+
+    # The payload is now a perfect 1-to-1 match with the database schema
+    payload = {
+        "name": name,
+        "age": age,
+        "income_range": data["income_range"],
+        "investment_amount": amount,
+        "time_horizon": data["time_horizon"],
+        "risk_tolerance": data["risk_tolerance"],
+        "investment_goals": data["investment_goals"],
+        "experience": data["experience"],
+    }
+
+    try:
+        profile_id = create_profile(payload)
+    except Exception as e:
+        # This will now give a more specific error if a column is missing
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify({"status": "ok", "profile_id": profile_id}), 201
+
+
+# GET and DELETE routes remain the same
+@onboard_bp.route("/onboard/<int:profile_id>", methods=["GET"])
+def fetch_onboard(profile_id):
+    profile = get_profile(profile_id)
+    if not profile:
+        return jsonify({"error": "Profile not found"}), 404
+    return jsonify(profile)
+
+
+@onboard_bp.route("/onboard/<int:profile_id>", methods=["DELETE"])
+def delete_onboard(profile_id):
+    success = delete_profile(profile_id)
+    if not success:
+        return jsonify({"error": "Profile not found or deletion failed"}), 404
+    return jsonify({"status": "deleted", "profile_id": profile_id}), 200
+--- File: ./backend/routes/__init__.py ---
+
+--- File: ./backend/routes/recommend.py ---
+from flask import Blueprint, request, jsonify
+from services.recommendation_service import generate_recommendation
+from services.projection_service import run_monte_carlo_simulation # 1. Import the projection service
+
+recommend_bp = Blueprint("recommend", __name__)
+
+@recommend_bp.route("/api/recommend", methods=["POST"])
+def recommend():
+    profile_from_request = request.get_json()
+    if not profile_from_request:
+        return jsonify({"error": "Request body must be JSON"}), 400
+
+    required_keys = ["age", "income", "investmentAmount", "timeHorizon", "riskTolerance", "experience"]
+    if not all(key in profile_from_request for key in required_keys):
+        return jsonify({"error": "Request body is missing required profile keys."}), 400
+
+    try:
+        service_profile = {
+            "age": int(profile_from_request["age"]),
+            "income": int(profile_from_request["income"]),
+            "investment_amount": float(profile_from_request["investmentAmount"]),
+            "time_horizon": str(profile_from_request["timeHorizon"]),
+            "risk_tolerance": str(profile_from_request["riskTolerance"]),
+            "experience": str(profile_from_request["experience"])
+        }
+        
+        # 2. First, generate the core recommendation
+        recommendation = generate_recommendation(service_profile)
+        
+        # 3. Then, immediately run projections on that new portfolio
+        projections = run_monte_carlo_simulation(
+            portfolio=recommendation["recommended_portfolio"],
+            initial_investment=service_profile["investment_amount"]
+        )
+        
+        # 4. Combine both results into a single response
+        final_response = {**recommendation, "projections": projections}
+        
+        return jsonify(final_response)
+
+    except Exception as e:
+        print(f"An error occurred during recommendation: {e}")
+        return jsonify({"error": "An internal error occurred."}), 500
+--- File: ./backend/routes/chat.py ---
+# backend/routes/chat.py
+
+from flask import Blueprint, request, jsonify
+from services.llm_service import chat_with_model
+
+chat_bp = Blueprint("chat", __name__)
+
+@chat_bp.route("/chat", methods=["POST"])
+def chat():
+    data = request.get_json() or {}
+    user_input = data.get("message")
+    if not user_input:
+        return jsonify({"error": "Missing 'message' field"}), 400
+    try:
+        reply = chat_with_model(user_input)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    return jsonify({"reply": reply})
+--- File: ./backend/routes/etfs.py ---
+from flask import Blueprint, jsonify
+from datetime import datetime
+from services.market_service import (
+    get_etf_metadata_from_db,
+    get_latest_prices_from_db,
+    get_historical_data_for_period,
+    calculate_ytd_return,
+    calculate_historical_return,
+    calculate_volatility,
+    calculate_sharpe_ratio
+)
+
+etfs_bp = Blueprint("etfs", __name__)
+
+@etfs_bp.route("/api/etfs/market-data", methods=["GET"])
+def get_top_etf_data():
+    try:
+        etf_metadata = get_etf_metadata_from_db()
+        if not etf_metadata:
+            return jsonify({"error": "No ETFs found in database."}), 404
+        
+        symbols = [etf['symbol'] for etf in etf_metadata]
+        
+        # Call the new function to get prices from our database
+        latest_prices = get_latest_prices_from_db(symbols)
+        
+        response_data = []
+        for etf in etf_metadata:
+            symbol = etf['symbol']
+            current_price = latest_prices.get(symbol)
+            
+            # Fetch data for the last year (365 days) and for YTD
+            historical_data_1yr = get_historical_data_for_period(symbol, 365)
+            # A simple way to get YTD data is to also just use the 1yr data and let the function find the start of the year
+            historical_data_ytd = get_yearly_historical_data_from_db(symbol)
+
+            # Perform calculations
+            one_year_return = calculate_historical_return(historical_data_1yr)
+            ytd_return = calculate_ytd_return(current_price, historical_data_ytd)
+            volatility = calculate_volatility(historical_data_1yr)
+            sharpe_ratio = calculate_sharpe_ratio(historical_data_1yr)
+
+            response_data.append({
+                'symbol': symbol,
+                'name': etf['name'],
+                'price': current_price or 0.0,
+                'ytd_return': ytd_return,
+                'expense_ratio': float(etf['expense_ratio']),
+                'one_year_return': one_year_return,
+                'volatility': volatility,
+                'sharpe_ratio': sharpe_ratio
+            })
+            
+        return jsonify(response_data)
+
+    except Exception as e:
+        print(f"An error occurred in the market data endpoint: {e}")
+        return jsonify({"error": "An internal server error occurred."}), 500
+
+
+# Helper alias to keep the code clean, as both functions are now the same
+def get_yearly_historical_data_from_db(symbol: str) -> list:
+    today = datetime.now().date()
+    start_of_year = datetime(today.year, 1, 1).date()
+    days_since_start_of_year = (today - start_of_year).days
+    return get_historical_data_for_period(symbol, days_since_start_of_year)
+--- File: ./backend/services/__init__.py ---
+
+--- File: ./backend/services/llm_service.py ---
+# backend/services/llm_service.py
+
+import os
+from openai import OpenAI
+from dotenv import load_dotenv
+
+# Load .env so OPENAI_API_KEY is available
+load_dotenv()
+
+# Instantiate a client (picks up OPENAI_API_KEY or you can pass api_key=...)
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+def _load_system_prompt() -> str:
+    return (
+        "You are Finora, a helpful and knowledgeable financial advisor. "
+        "Respond concisely, clearly, and professionally to user queries "
+        "about investments, ETFs, allocation, and risk management."
+    )
+
+def chat_with_model(user_message: str) -> str:
+    """
+    Send a user message to the LLM via the new v1.x interface and return its reply.
+    """
+    system_prompt = _load_system_prompt()
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user",   "content": user_message}
+    ]
+
+    # Use the new chat completion call
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=messages,
+        temperature=0.7,
+        max_tokens=500
+    )
+
+    # Extract and return the assistant’s reply text
+    return response.choices[0].message.content.strip()
+--- File: ./backend/services/market_service.py ---
+import os
+import requests
+import numpy as np
+import pandas as pd
+from datetime import datetime, timedelta
+from supabase import create_client, Client
+from dotenv import load_dotenv
+
+# --- Configuration ---
+load_dotenv()
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+# FMP API Key is no longer needed here
+if not all([SUPABASE_URL, SUPABASE_KEY]):
+    raise ValueError("Supabase credentials must be set in .env file")
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# --- Service Functions ---
+
+def get_etf_metadata_from_db():
+    """Fetches all ETF metadata (symbol, name, expense_ratio) from our db."""
+    response = supabase.table('etfs').select('symbol, name, expense_ratio').execute()
+    return response.data if response.data else []
+
+def get_latest_prices_from_db(symbols: list) -> dict:
+    """
+    Fetches the most recent closing price for each symbol from our Supabase cache.
+    """
+    if not symbols:
+        return {}
+    
+    prices = {}
+    for symbol in symbols:
+        # For each symbol, get the latest entry from the historical data table
+        response = supabase.table('etf_historical_data') \
+            .select('close_price') \
+            .eq('symbol', symbol) \
+            .order('date', desc=True) \
+            .limit(1) \
+            .execute()
+        
+        if response.data:
+            prices[symbol] = float(response.data[0]['close_price'])
+    
+    print(f"Fetched latest prices for {len(prices)} symbols from DB cache.")
+    return prices
+
+def get_historical_data_for_period(symbol: str, days: int) -> list:
+    """Gets cached historical data for a symbol for a specific past period."""
+    start_date = datetime.now().date() - timedelta(days=days)
+    
+    response = supabase.table('etf_historical_data') \
+        .select('date, close_price') \
+        .eq('symbol', symbol) \
+        .gte('date', start_date.strftime('%Y-%m-%d')) \
+        .order('date', desc=False) \
+        .execute()
+    return response.data if response.data else []
+
+# --- Calculation Functions ---
+
+def calculate_historical_return(historical_data: list) -> float:
+    """Calculates the total return over the given historical data period."""
+    if len(historical_data) < 2:
+        return 0.0
+    start_price = float(historical_data[0]['close_price'])
+    end_price = float(historical_data[-1]['close_price'])
+    if start_price == 0:
+        return 0.0
+    return round(((end_price - start_price) / start_price) * 100, 2)
+
+def calculate_ytd_return(live_price: float, historical_data: list) -> float:
+    """Calculates the Year-to-Date return from a series of historical prices."""
+    if not historical_data or live_price is None:
+        return 0.0
+    start_price = float(historical_data[0]['close_price'])
+    if start_price == 0:
+        return 0.0
+    ytd_return = ((live_price - start_price) / start_price) * 100
+    return round(ytd_return, 2)
+
+def calculate_volatility(historical_data: list) -> float:
+    """Calculates the annualized volatility (standard deviation of daily returns)."""
+    if len(historical_data) < 2:
+        return 0.0
+    prices = pd.Series([float(p['close_price']) for p in historical_data])
+    daily_returns = prices.pct_change().dropna()
+    volatility = daily_returns.std() * np.sqrt(252) 
+    return round(volatility * 100, 2)
+
+def calculate_sharpe_ratio(historical_data: list, risk_free_rate: float = 0.04) -> float:
+    """Calculates the Sharpe Ratio, assuming a risk-free rate (e.g., 4%)."""
+    if len(historical_data) < 2:
+        return 0.0
+    prices = pd.Series([float(p['close_price']) for p in historical_data])
+    daily_returns = prices.pct_change().dropna()
+    if daily_returns.std() == 0:
+        return 0.0
+    excess_returns = daily_returns - (risk_free_rate / 252)
+    sharpe_ratio = (excess_returns.mean() / excess_returns.std()) * np.sqrt(252)
+    return round(sharpe_ratio, 2)
+--- File: ./backend/services/recommendation_service.py ---
+import numpy as np
+import pandas as pd
+from datetime import datetime, timedelta
+from .market_service import (
+    get_etf_metadata_from_db, 
+    get_historical_data_for_period, 
+    calculate_volatility, 
+    calculate_sharpe_ratio,
+    calculate_historical_return
+)
+
+# ... (ETF_CATEGORIES and ASSET_ALLOCATION_MODELS are unchanged) ...
+ETF_CATEGORIES = {
+    "US Large Cap": ["VOO", "VTI", "SPY", "IVV", "VTV", "VUG", "SCHX", "SCHG", "VV", "IWF", "IVW", "IWD", "IWB"],
+    "US Mid Cap": ["IJH", "VO", "IWR", "MDY"],
+    "US Small Cap": ["IJR", "VB", "VBR", "VXF", "IWM"],
+    "International Developed": ["VEA", "IEFA", "EFA", "SCHF", "SPDW", "EFV", "VGK", "VEU"],
+    "International Emerging": ["IEMG", "VWO"],
+    "Bonds": ["BND", "AGG", "BNDX", "VCIT", "BSV", "VTEB", "VCSH", "IEF", "GOVT", "LQD", "IUSB", "VGIT", "BIV"],
+    "Technology": ["QQQ", "VGT", "XLK", "QQQM", "IYW", "SMH"],
+    "Alternatives": ["GLD", "VNQ", "IBIT", "IAU", "FBTC"],
+}
+
+
+def _fetch_and_calculate_all_etf_metrics():
+    """
+    Helper function to get all data and calculate metrics for all ETFs.
+    """
+    etf_metadata = get_etf_metadata_from_db()
+    all_metrics = {}
+
+    for etf in etf_metadata:
+        symbol = etf['symbol']
+        historical_data_1yr = get_historical_data_for_period(symbol, 365)
+        
+        # 1. ADD THE 1-YEAR RETURN TO THE METRICS WE GATHER FOR EACH ETF
+        all_metrics[symbol] = {
+            "name": etf['name'],
+            "expense_ratio": float(etf['expense_ratio']),
+            "volatility": calculate_volatility(historical_data_1yr),
+            "sharpe_ratio": calculate_sharpe_ratio(historical_data_1yr),
+            "one_year_return": calculate_historical_return(historical_data_1yr) # <-- NEW
+        }
+    return all_metrics
+
+def _find_best_etf_for_category(category: str, all_metrics: dict, risk_tolerance: str) -> dict:
+    # ... (this function is unchanged) ...
+    symbols_in_category = ETF_CATEGORIES.get(category, [])
+    candidate_etfs = {s: m for s, m in all_metrics.items() if s in symbols_in_category}
+    if not candidate_etfs: return None
+    if risk_tolerance == "conservative": weights = {"sharpe": 0.6, "volatility": -0.3, "expense": -0.1}
+    elif risk_tolerance == "aggressive": weights = {"sharpe": 0.8, "volatility": -0.1, "expense": -0.1}
+    else: weights = {"sharpe": 0.7, "volatility": -0.2, "expense": -0.1}
+    best_etf, max_score = None, -float('inf')
+    for symbol, metrics in candidate_etfs.items():
+        score = (metrics['sharpe_ratio'] * weights['sharpe'] + metrics['volatility'] * weights['volatility'] + metrics['expense_ratio'] * weights['expense'])
+        if score > max_score:
+            max_score, best_etf = score, {"symbol": symbol, **metrics}
+    return best_etf
+
+# The only change is in the main `generate_recommendation` function
+def generate_recommendation(profile: dict) -> dict:
+    """
+    The main function to generate a fully personalized, data-driven recommendation.
+    """
+    risk_score = _calculate_nuanced_risk_score(profile)
+    dynamic_allocation_model = _generate_dynamic_allocation(risk_score)
+    all_etf_metrics = _fetch_and_calculate_all_etf_metrics()
+    
+    recommended_portfolio = []
+    investment_amount = profile.get("investment_amount", 0)
+    risk_tolerance = profile.get("risk_tolerance")
+
+    for category, percentage in dynamic_allocation_model.items():
+        best_etf = _find_best_etf_for_category(category, all_etf_metrics, risk_tolerance)
+        if best_etf:
+            # --- NEW: Fetch 1 year of historical data for the chart ---
+            chart_data = get_historical_data_for_period(best_etf['symbol'], 365)
+
+            recommended_portfolio.append({
+                "symbol": best_etf['symbol'],
+                "name": best_etf['name'],
+                "category": category,
+                "allocation": round(percentage * 100),
+                "investment_amount": round(investment_amount * percentage, 2),
+                "historical_data": chart_data # <-- ADD THIS to the object
+            })
+            
+    portfolio_expected_return = 0.0
+    for etf in recommended_portfolio:
+        symbol = etf['symbol']
+        allocation_pct = etf['allocation'] / 100.0
+        etf_return = all_etf_metrics.get(symbol, {}).get('one_year_return', 0.0)
+        portfolio_expected_return += allocation_pct * etf_return
+
+    return {
+        "nuanced_risk_score": round(risk_score, 2),
+        "risk_tolerance_original": risk_tolerance,
+        "expected_annual_return": round(portfolio_expected_return, 2),
+        "recommended_portfolio": recommended_portfolio
+    }
+
+def _calculate_nuanced_risk_score(profile: dict) -> float:
+    # ... (this function is unchanged) ...
+    base_score = {"conservative": 3.0, "moderate": 6.0, "aggressive": 9.0}.get(profile.get("risk_tolerance"), 5.0)
+    adjustment = 0.0
+    age = profile.get("age", 40)
+    if age < 30: adjustment += 1.0
+    elif age > 50: adjustment -= 1.0
+    time_horizon = profile.get("time_horizon", "medium")
+    if time_horizon == "long": adjustment += 1.0
+    elif time_horizon == "short": adjustment -= 1.0
+    investment_amount = profile.get("investment_amount", 0)
+    income = profile.get("income", 0)
+    if income > 0 and (investment_amount / income) > 0.20: adjustment -= 1.0
+    experience = profile.get("experience", "intermediate")
+    if experience == "advanced": adjustment += 0.5
+    elif experience == "beginner": adjustment -= 0.5
+    final_score = base_score + adjustment
+    return max(1.0, min(10.0, final_score))
+
+def _generate_dynamic_allocation(risk_score: float) -> dict:
+    # ... (this function is unchanged) ...
+    safest_portfolio = {"Bonds": 0.70, "US Large Cap": 0.20, "International Developed": 0.10}
+    riskiest_portfolio = {"US Large Cap": 0.50, "International Developed": 0.25, "International Emerging": 0.15, "Technology": 0.10}
+    risk_percent = (risk_score - 1) / 9.0
+    final_allocation = {}
+    all_categories = set(safest_portfolio.keys()) | set(riskiest_portfolio.keys())
+    for category in all_categories:
+        safe_pct = safest_portfolio.get(category, 0)
+        risky_pct = riskiest_portfolio.get(category, 0)
+        final_pct = safe_pct + (risky_pct - safe_pct) * risk_percent
+        if final_pct > 0:
+            final_allocation[category] = final_pct
+    total_pct = sum(final_allocation.values())
+    return {category: pct / total_pct for category, pct in final_allocation.items()}
+--- File: ./backend/services/onboarding_service.py ---
+# backend/services/onboarding_service.py
+
+import os
+from supabase import create_client
+from dotenv import load_dotenv
+
+# Load environment variables for Supabase credentials
+load_dotenv()
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+# Initialize Supabase client
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+
+def create_profile(data: dict) -> int:
+    """
+    Insert an onboarding profile into Supabase and return the new record's ID.
+    """
+    result = supabase.table("profiles").insert(data).execute()
+    try:
+        return result.data[0]["id"]
+    except Exception:
+        raise Exception(f"Unexpected insert response: {result}")
+
+
+def get_profile(profile_id: int) -> dict:
+    """
+    Retrieve a single profile by ID from Supabase.
+    Returns the row dict or None if not found.
+    """
+    result = (
+        supabase
+        .table("profiles")
+        .select("*")
+        .eq("id", profile_id)
+        .single()
+        .execute()
+    )
+    return result.data if getattr(result, "data", None) else None
+
+
+def delete_profile(profile_id: int) -> bool:
+    """
+    Delete a profile by ID from Supabase.
+    Returns True if a row was deleted, False otherwise.
+    """
+    result = (
+        supabase
+        .table("profiles")
+        .delete()
+        .eq("id", profile_id)
+        .execute()
+    )
+    return bool(getattr(result, "data", None))
+--- File: ./backend/services/projection_service.py ---
+import numpy as np
+from .market_service import get_historical_data_for_period, calculate_volatility, calculate_historical_return
+
+def run_monte_carlo_simulation(portfolio: list, initial_investment: float, years: int = 20, simulations: int = 500):
+    """
+    Runs a Monte Carlo simulation to project portfolio growth.
+    """
+    # 1. Calculate the weighted average return and volatility of the entire portfolio
+    portfolio_return = 0
+    portfolio_volatility = 0
+    
+    for etf in portfolio:
+        symbol = etf['symbol']
+        allocation = etf['allocation'] / 100.0
+        
+        # We use 5 years of data for a stable long-term average
+        historical_data = get_historical_data_for_period(symbol, 365 * 5)
+        
+        # Calculate annualized return and volatility for each ETF
+        annual_return = calculate_historical_return(historical_data) / 5 # Average annual return
+        volatility = calculate_volatility(historical_data)
+        
+        portfolio_return += allocation * (annual_return / 100)
+        portfolio_volatility += allocation * (volatility / 100)
+
+    # 2. Run the simulations
+    final_values = []
+    for _ in range(simulations):
+        yearly_values = [initial_investment]
+        for _ in range(years):
+            # Generate a random return based on the portfolio's average return and volatility
+            random_return = np.random.normal(portfolio_return, portfolio_volatility)
+            next_year_value = yearly_values[-1] * (1 + random_return)
+            yearly_values.append(next_year_value)
+        final_values.append(yearly_values[-1])
+
+    # 3. Determine the scenarios by picking percentiles from the simulation results
+    projections = []
+    for year in [5, 10, 15, 20]:
+        yearly_outcomes = []
+        # This is a simplified approach; a full MC would track each year's distribution
+        # For our purpose, we'll project from the final values percentiles
+        
+        p10 = np.percentile(final_values, 10)
+        p50 = np.percentile(final_values, 50)
+        p90 = np.percentile(final_values, 90)
+
+        # Project back to the target year based on the final outcome's implied growth rate
+        conservative_rate = (p10 / initial_investment) ** (1/years) - 1
+        expected_rate = (p50 / initial_investment) ** (1/years) - 1
+        optimistic_rate = (p90 / initial_investment) ** (1/years) - 1
+
+        projections.append({
+            "year": year,
+            "conservative": round(initial_investment * ((1 + conservative_rate) ** year)),
+            "expected": round(initial_investment * ((1 + expected_rate) ** year)),
+            "optimistic": round(initial_investment * ((1 + optimistic_rate) ** year)),
+        })
+        
+    return projections
