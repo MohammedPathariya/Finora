@@ -1,0 +1,1638 @@
+
+========================================
+FILE: backend/requirements.txt
+========================================
+
+# -- Core Web Framework --
+Flask==3.0.0
+Flask-Cors==4.0.1
+python-dotenv==1.0.1
+
+# -- Data Access & Manipulation --
+supabase==2.5.0
+yfinance==0.2.40
+pandas==2.2.2
+numpy==1.26.4  # Added missing dependency
+requests==2.32.3
+
+# -- AI & Machine Learning --
+openai==1.35.3
+
+# -- Typing Support --
+pandas-stubs==2.2.2.240603
+========================================
+FILE: backend/requirements-dev.txt
+========================================
+
+# requirements-dev.txt
+
+# -- Testing --
+pytest==8.2.2
+
+# -- Code Quality & Formatting --
+black==24.4.2
+ruff==0.4.10
+========================================
+FILE: backend/scripts/populate_historical_data.py
+========================================
+
+# backend/scripts/populate_historical_data.py
+
+"""
+Offline Data Caching Script for Finora.
+
+This script is designed to be run independently (e.g., via a daily cron job)
+to populate and maintain a cache of historical ETF price data in a Supabase
+database. It fetches the list of ETFs to track from the 'etfs' table and
+intelligently scrapes only the new, missing data for each one from Yahoo Finance.
+
+This caching strategy ensures the live application remains fast and reliable,
+without being dependent on slow, external APIs for historical data requests.
+"""
+
+import os
+import yfinance as yf
+import pandas as pd
+from datetime import datetime, timedelta
+from dotenv import load_dotenv
+from supabase import create_client, Client
+
+# --- Configuration ---
+# Load environment variables from the .env file and initialize the Supabase client.
+load_dotenv()
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise ValueError("Supabase credentials not found in .env file")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# Set a historical start date for the very first scrape of a new ETF.
+# This ensures a consistent baseline of data for all tracked securities.
+INITIAL_SCRAPE_START_DATE = "2020-01-01"
+
+def run_scraper():
+    """
+    Executes the main data scraping and caching logic.
+
+    This function performs a series of steps for each ETF tracked in the database:
+    1. Fetches the master list of ETF symbols.
+    2. For each symbol, determines the last date for which data is cached.
+    3. Calculates the required date range for fetching new data.
+    4. Downloads the missing historical data from Yahoo Finance.
+    5. Formats the data and upserts it into the 'etf_historical_data' table.
+
+    The process is idempotent, meaning it can be run multiple times without
+    creating duplicate entries or causing errors.
+    """
+    # 1. Get the list of symbols to track directly from our 'etfs' table
+    print("Fetching list of ETFs to track from the database...")
+    etfs_response = supabase.table('etfs').select('symbol').execute()
+    if not etfs_response.data:
+        print("No ETFs found in the database. Please populate the 'etfs' table first.")
+        return
+    
+    symbols_to_track = [item['symbol'] for item in etfs_response.data]
+    print(f"Found {len(symbols_to_track)} ETFs to process.")
+
+    for symbol in symbols_to_track:
+        print(f"--- Processing: {symbol} ---")
+        
+        # 2. Find the most recent date we have for this symbol in our database.
+        # This makes the script efficient and idempotent. By finding the last entry,
+        # we ensure that we only fetch data that is genuinely new.
+        response = supabase.table('etf_historical_data') \
+            .select('date') \
+            .eq('symbol', symbol) \
+            .order('date', desc=True) \
+            .limit(1) \
+            .execute()
+
+        latest_date_in_db = None
+        if response.data:
+            # If data exists, the next scrape should start the day after the latest record.
+            latest_date_in_db = datetime.strptime(response.data[0]['date'], '%Y-%m-%d').date()
+            print(f"Latest data in database: {latest_date_in_db}")
+            start_date = latest_date_in_db + timedelta(days=1)
+        else:
+            # If no data exists for this symbol, start from the initial fixed date.
+            print("No existing data found. Starting initial scrape from 2020.")
+            start_date = datetime.strptime(INITIAL_SCRAPE_START_DATE, '%Y-%m-%d').date()
+
+        # 3. Scrape new data from Yahoo Finance
+        today = datetime.now().date()
+        if start_date >= today:
+            print(f"Data for {symbol} is already up to date. Skipping scrape.")
+            continue
+
+        print(f"Scraping new data for {symbol} from {start_date} to {today}...")
+        # yf.download fetches the data. auto_adjust=True is important as it
+        # adjusts prices for stock splits and dividends, ensuring historical accuracy.
+        df = yf.download(symbol, start=start_date, end=today, progress=False, auto_adjust=True)
+
+        if df.empty:
+            print(f"No new data found from Yahoo Finance for {symbol}.")
+            continue
+
+        # 4. Prepare and insert the new records into Supabase.
+        # The yfinance library returns a pandas DataFrame, which we must convert
+        # into a list of dictionaries that matches our Supabase table schema.
+        records_to_insert = []
+        for date, row in df.iterrows():
+            record = {
+                "symbol": symbol,
+                "date": date.strftime('%Y-%m-%d'),
+                "close_price": round(float(row['Close']), 2)
+            }
+            records_to_insert.append(record)
+
+        if records_to_insert:
+            print(f"Found {len(records_to_insert)} new records to insert.")
+            try:
+                # We use .upsert() as a robust way to insert data. While our date logic
+                # should prevent any duplicate primary keys (symbol, date), upsert
+                # provides an extra layer of safety against potential conflicts.
+                _, count = supabase.table('etf_historical_data').upsert(records_to_insert).execute()
+                print(f"Successfully inserted/updated records for {symbol}.")
+            except Exception as e:
+                print(f"An error occurred during insert for {symbol}: {e}")
+
+    print("\n--- Scraping process complete. ---")
+
+if __name__ == "__main__":
+    # This block allows the script to be run directly from the command line.
+    run_scraper()
+========================================
+FILE: backend/scripts/manage_etfs.py
+========================================
+
+# backend/scripts/manage_etfs.py
+
+"""
+Command-Line Admin Tool for ETF Management.
+
+This script provides a command-line interface (CLI) for performing CRUD
+(Create, Read, Update, Delete) operations on the 'etfs' table in the
+Supabase database. It allows an administrator to easily list, add, remove,
+and update the ETFs that the Finora application tracks.
+
+This tool is intended for administrative use only and is separate from the
+main Flask web application.
+
+Usage Examples:
+  python manage_etfs.py list
+  python manage_etfs.py add VTI "Vanguard Total Stock Market ETF" 0.03
+  python manage_etfs.py remove VTI
+  python manage_etfs.py update VOO --name "Vanguard S&P 500 Index Fund ETF"
+"""
+import os
+import argparse
+from dotenv import load_dotenv
+from supabase import create_client, Client
+
+# --- Configuration ---
+# Load environment variables from the .env file and initialize the Supabase client.
+load_dotenv()
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise ValueError("Supabase credentials not found in .env file")
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# --- Service Functions for DB Operations ---
+
+def list_etfs():
+    """Fetches and prints a formatted list of all ETFs currently tracked in the database."""
+    print("Fetching all ETFs from the database...")
+    response = supabase.table('etfs').select('symbol, name, expense_ratio').order('symbol').execute()
+    if response.data:
+        # Print a formatted header for the table
+        print(f"{'Symbol':<6} | {'Name':<60} | {'Expense Ratio':<15}")
+        print("-" * 90)
+        for etf in response.data:
+            print(f"- {etf['symbol']:<6} | {etf['name']:<60} | {etf['expense_ratio']}%")
+    else:
+        print("No ETFs found.")
+
+def add_etf(symbol: str, name: str, expense_ratio: float):
+    """
+    Adds a new ETF to the 'etfs' table in the database.
+
+    Args:
+        symbol (str): The stock symbol of the ETF (e.g., VOO).
+        name (str): The full name of the ETF.
+        expense_ratio (float): The annual expense ratio of the fund.
+    """
+    print(f"Adding ETF '{symbol}'...")
+    try:
+        # The symbol is converted to uppercase to maintain data consistency.
+        response = supabase.table('etfs').insert({
+            'symbol': symbol.upper(),
+            'name': name,
+            'expense_ratio': expense_ratio
+        }).execute()
+        if response.data:
+            print(f"✅ Successfully added {symbol}.")
+    except Exception as e:
+        print(f"❌ Error adding {symbol}: {e}")
+
+def remove_etf(symbol: str):
+    """
+    Removes an ETF from the 'etfs' table and deletes all of its associated
+    historical price data from the 'etf_historical_data' table.
+
+    Args:
+        symbol (str): The stock symbol of the ETF to remove.
+    """
+    symbol = symbol.upper()
+    print(f"Removing ETF '{symbol}' and all its historical data...")
+    try:
+        # Important: Due to a foreign key constraint in the database, we must delete
+        # the records from the 'child' table (etf_historical_data) before deleting
+        # the 'parent' record from the 'etfs' table.
+        print(f"Deleting historical data for {symbol}...")
+        supabase.table('etf_historical_data').delete().eq('symbol', symbol).execute()
+        
+        print(f"Deleting metadata for {symbol}...")
+        response = supabase.table('etfs').delete().eq('symbol', symbol).execute()
+
+        # The response.data will contain the record that was deleted.
+        # If it's empty, it means no record matched the symbol.
+        if response.data:
+            print(f"✅ Successfully removed {symbol}.")
+        else:
+            print(f"⚠️  Warning: ETF {symbol} not found in the metadata table.")
+            
+    except Exception as e:
+        print(f"❌ Error removing {symbol}: {e}")
+
+def update_etf(symbol: str, name: str = None, expense_ratio: float = None):
+    """
+    Updates the name and/or expense ratio for an existing ETF in the database.
+
+    Args:
+        symbol (str): The symbol of the ETF to update.
+        name (str, optional): The new full name for the ETF. Defaults to None.
+        expense_ratio (float, optional): The new expense ratio. Defaults to None.
+    """
+    symbol = symbol.upper()
+    print(f"Updating ETF '{symbol}'...")
+    
+    # Build a dictionary of only the fields that the user wants to update.
+    update_data = {}
+    if name:
+        update_data['name'] = name
+    if expense_ratio is not None:
+        update_data['expense_ratio'] = expense_ratio
+        
+    if not update_data:
+        print("Nothing to update. Please provide a --name and/or --expense.")
+        return
+        
+    try:
+        response = supabase.table('etfs').update(update_data).eq('symbol', symbol).execute()
+        if response.data:
+            print(f"✅ Successfully updated {symbol}.")
+        else:
+            print(f"⚠️  Warning: ETF {symbol} not found. No update was made.")
+    except Exception as e:
+        print(f"❌ Error updating {symbol}: {e}")
+
+# --- Main CLI Logic ---
+if __name__ == "__main__":
+    # This block configures the command-line argument parser, defining the
+    # subcommands and their expected arguments using Python's argparse library.
+    parser = argparse.ArgumentParser(description="Admin script to manage ETFs in the Supabase database.")
+    subparsers = parser.add_subparsers(dest="command", required=True, help="Available commands")
+
+    # `list` command: No arguments needed.
+    parser_list = subparsers.add_parser('list', help='List all ETFs in the database.')
+
+    # `add` command: Requires three positional arguments.
+    parser_add = subparsers.add_parser('add', help='Add a new ETF.')
+    parser_add.add_argument('symbol', type=str, help='The stock symbol of the ETF (e.g., VOO).')
+    parser_add.add_argument('name', type=str, help='The full name of the ETF (e.g., "Vanguard S&P 500 ETF").')
+    parser_add.add_argument('expense_ratio', type=float, help='The expense ratio as a float (e.g., 0.03).')
+
+    # `remove` command: Requires a single positional argument.
+    parser_remove = subparsers.add_parser('remove', help='Remove an ETF and its historical data.')
+    parser_remove.add_argument('symbol', type=str, help='The symbol of the ETF to remove.')
+
+    # `update` command: Requires a symbol and optional arguments for the fields to update.
+    parser_update = subparsers.add_parser('update', help='Update an existing ETF.')
+    parser_update.add_argument('symbol', type=str, help='The symbol of the ETF to update.')
+    parser_update.add_argument('--name', type=str, help='The new full name for the ETF.')
+    parser_update.add_argument('--expense', type=float, dest='expense_ratio', help='The new expense ratio.')
+
+    args = parser.parse_args()
+
+    # Based on the parsed command, execute the corresponding function.
+    if args.command == 'list':
+        list_etfs()
+    elif args.command == 'add':
+        add_etf(args.symbol, args.name, args.expense_ratio)
+    elif args.command == 'remove':
+        remove_etf(args.symbol)
+    elif args.command == 'update':
+        update_etf(args.symbol, args.name, args.expense_ratio)
+========================================
+FILE: backend/app.py
+========================================
+
+# backend/app.py
+
+"""
+Main Entry Point for the Finora Flask Application.
+
+This file is responsible for initializing, configuring, and running the Flask web server.
+It performs the following key functions:
+- Loads environment variables from the .env file.
+- Creates the core Flask application instance.
+- Configures Cross-Origin Resource Sharing (CORS) to allow the frontend to communicate with it.
+- Imports and registers all the API endpoint blueprints from the 'routes' directory.
+- Defines a simple root route ("/") for basic status checks.
+- Starts the development server when the script is executed directly.
+"""
+
+from flask import Flask
+from flask_cors import CORS
+from dotenv import load_dotenv
+
+# Load environment variables (e.g., SUPABASE_URL, OPENAI_API_KEY) from the .env file.
+# This must be done before any other application modules are imported, as they may
+# depend on these variables during their own initialization.
+load_dotenv()
+
+# Import the blueprint objects from their respective route files.
+from routes.health import health_bp
+from routes.onboarding import onboard_bp
+from routes.chat import chat_bp
+from routes.etfs import etfs_bp
+from routes.recommend import recommend_bp
+
+# Create the main Flask application instance.
+app = Flask(__name__)
+
+# Enable CORS for the entire application. This is crucial for allowing the
+# React frontend (running on a different domain/port during development)
+# to make API requests to this backend.
+CORS(app)
+
+# Register all the imported blueprints with the Flask app.
+# This connects the routes defined in each blueprint (e.g., /health, /chat)
+# to the main application, making them accessible via HTTP requests.
+app.register_blueprint(health_bp)
+app.register_blueprint(onboard_bp)
+app.register_blueprint(chat_bp)
+app.register_blueprint(etfs_bp)
+app.register_blueprint(recommend_bp)
+
+@app.route("/")
+def home():
+    """Defines the root route, which provides a simple status message."""
+    return {"message": "Finora backend is running"}
+
+# This standard Python construct ensures that the Flask development server is only
+# run when the script is executed directly (e.g., `python app.py`).
+# It will not run if the 'app' object is imported by another script.
+if __name__ == "__main__":
+    app.run(debug=True, port=5000)
+========================================
+FILE: backend/routes/health.py
+========================================
+
+# backend/routes/health.py
+
+"""
+API Endpoint for Health Check.
+
+This blueprint defines a simple '/health' route. Health check endpoints are a
+standard practice in web services. They provide a straightforward way for
+monitoring tools, load balancers, or container orchestrators (like Kubernetes)
+to verify that the application instance is running and able to respond to
+requests.
+"""
+
+from flask import Blueprint, jsonify
+
+health_bp = Blueprint("health", __name__)
+
+@health_bp.route("/health", methods=["GET"])
+def health():
+    """
+    Performs a basic health check of the application.
+
+    This is the simplest form of a health check. It doesn't verify database
+    connections or other dependencies; it just confirms that the Flask
+    application is up and running.
+
+    Returns:
+        A JSON response with a 200 OK status code, indicating the service is healthy.
+        Example:
+            {
+                "status": "ok",
+                "service": "Finora backend"
+            }
+    """
+    # Responds with a 200 OK status and a simple JSON payload.
+    return jsonify(status="ok", service="Finora backend")
+========================================
+FILE: backend/routes/onboarding.py
+========================================
+
+# backend/routes/onboarding.py
+
+"""
+API Endpoints for User Onboarding.
+
+This blueprint handles the lifecycle of a user's profile data. It provides
+RESTful endpoints to create (POST), retrieve (GET), and delete (DELETE)
+user profiles. The data collected via these endpoints is the foundation for
+generating personalized investment recommendations.
+"""
+
+from flask import Blueprint, request, jsonify
+from services.onboarding_service import create_profile, get_profile, delete_profile
+
+onboard_bp = Blueprint("onboard", __name__)
+
+@onboard_bp.route("/onboard", methods=["POST"])
+def onboard():
+    """
+    Creates a new user profile from onboarding data.
+
+    This endpoint receives the completed user profile from the frontend form,
+    performs server-side validation, and then passes the clean data to the
+    onboarding service to be persisted in the database.
+
+    Request JSON Body:
+        {
+            "name": "Jane Doe",
+            "age": 30,
+            "income_range": "$50,000 - $99,999",
+            "investment_amount": 10000,
+            "time_horizon": "long",
+            "risk_tolerance": "moderate",
+            "investment_goals": "Retirement planning, General wealth building",
+            "experience": "intermediate"
+        }
+
+    Returns:
+        A JSON response with the new profile's ID on success, or an error.
+        On success (201 Created):
+            { "status": "ok", "profile_id": 123 }
+        On error (400 or 500):
+            { "error": "Error message details..." }
+    """
+    data = request.get_json() or {}
+    
+    # Define all fields required by the database table.
+    required = [
+        "name",
+        "age",
+        "income_range",
+        "investment_amount",
+        "time_horizon",
+        "risk_tolerance",
+        "investment_goals",
+        "experience",
+    ]
+    
+    # 1. First-pass validation: ensure all required fields are present in the request.
+    missing = [f for f in required if f not in data]
+    if missing:
+        return jsonify({"error": f"Missing fields: {', '.join(missing)}"}), 400
+
+    # 2. Second-pass validation: check data types and business rules for key fields.
+    # This is a crucial security and data integrity step.
+    try:
+        name = str(data["name"])
+        age = int(data["age"])
+        amount = int(data["investment_amount"])
+
+        if not name.strip():
+            return jsonify({"error": "Name cannot be empty."}), 400
+        if not 18 <= age <= 100:
+            return jsonify({"error": "Age must be between 18 and 100."}), 400
+        if amount <= 0:
+            return jsonify({"error": "Investment amount must be a positive number."}), 400
+
+    except (ValueError, TypeError):
+        return jsonify({"error": "Age and investment amount must be valid numbers."}), 400
+
+    # 3. Assemble a clean payload dictionary. This ensures no unexpected fields
+    # are passed to the service layer.
+    payload = {
+        "name": name,
+        "age": age,
+        "income_range": data["income_range"],
+        "investment_amount": amount,
+        "time_horizon": data["time_horizon"],
+        "risk_tolerance": data["risk_tolerance"],
+        "investment_goals": data["investment_goals"],
+        "experience": data["experience"],
+    }
+
+    try:
+        # 4. Delegate database insertion to the service layer.
+        profile_id = create_profile(payload)
+    except Exception as e:
+        # Handle potential database errors passed up from the service.
+        return jsonify({"error": str(e)}), 500
+
+    # On successful creation, return a 201 Created status code, which is the
+    # correct HTTP standard for a POST request that creates a new resource.
+    return jsonify({"status": "ok", "profile_id": profile_id}), 201
+
+
+@onboard_bp.route("/onboard/<int:profile_id>", methods=["GET"])
+def fetch_onboard(profile_id):
+    """
+    Retrieves a user profile by its ID.
+
+    Args:
+        profile_id (int): The unique identifier for the user profile,
+                          passed in the URL.
+
+    Returns:
+        A JSON response containing the full profile data or a 404 error if not found.
+    """
+    profile = get_profile(profile_id)
+    if not profile:
+        return jsonify({"error": "Profile not found"}), 404
+    return jsonify(profile)
+
+
+@onboard_bp.route("/onboard/<int:profile_id>", methods=["DELETE"])
+def delete_onboard(profile_id):
+    """
+    Deletes a user profile by its ID.
+
+    Args:
+        profile_id (int): The unique identifier for the user profile,
+                          passed in the URL.
+
+    Returns:
+        A JSON response confirming deletion or a 404 error if not found.
+    """
+    success = delete_profile(profile_id)
+    if not success:
+        return jsonify({"error": "Profile not found or deletion failed"}), 404
+    return jsonify({"status": "deleted", "profile_id": profile_id}), 200
+========================================
+FILE: backend/routes/__init__.py
+========================================
+
+
+========================================
+FILE: backend/routes/recommend.py
+========================================
+
+# backend/routes/recommend.py
+
+"""
+Core API Endpoint for Generating Investment Recommendations.
+
+This blueprint defines the '/api/recommend' route, which is the central "engine"
+of the Finora application. It takes a user's complete financial profile and
+orchestrates calls to the recommendation and projection services to generate
+a full, personalized investment plan.
+"""
+
+from flask import Blueprint, request, jsonify
+from services.recommendation_service import generate_recommendation
+from services.projection_service import run_monte_carlo_simulation
+
+recommend_bp = Blueprint("recommend", __name__)
+
+@recommend_bp.route("/api/recommend", methods=["POST"])
+def recommend():
+    """
+    Generates a personalized investment portfolio and growth projections.
+
+    This endpoint is the heart of the application. It receives a user's profile,
+    validates it, and then calls two key services in sequence:
+    1. `generate_recommendation`: Creates a tailored ETF portfolio.
+    2. `run_monte_carlo_simulation`: Projects the long-term growth of that portfolio.
+
+    The results are combined into a single, comprehensive response for the client.
+
+    Request JSON Body (camelCase keys from frontend):
+        {
+            "age": 30,
+            "income": 75000,
+            "investmentAmount": 10000,
+            "timeHorizon": "long",
+            "riskTolerance": "moderate",
+            "experience": "intermediate"
+        }
+
+    Returns:
+        A JSON object containing the full investment plan, or an error.
+        On success (200):
+            {
+                "nuanced_risk_score": 7.5,
+                "risk_tolerance_original": "moderate",
+                "expected_annual_return": 8.5,
+                "recommended_portfolio": [ ... list of ETF objects ... ],
+                "projections": [ ... list of yearly projection objects ... ]
+            }
+        On error (400 or 500):
+            { "error": "Error message details..." }
+    """
+    profile_from_request = request.get_json()
+    if not profile_from_request:
+        return jsonify({"error": "Request body must be JSON"}), 400
+
+    # 1. Validate the incoming request to ensure all necessary data is present.
+    required_keys = ["age", "income", "investmentAmount", "timeHorizon", "riskTolerance", "experience"]
+    if not all(key in profile_from_request for key in required_keys):
+        return jsonify({"error": "Request body is missing required profile keys."}), 400
+
+    try:
+        # 2. Sanitize and structure the input data for the service layer.
+        # Note the transformation from the frontend's camelCase (e.g., investmentAmount)
+        # to the snake_case expected by the Python services.
+        service_profile = {
+            "age": int(profile_from_request["age"]),
+            "income": int(profile_from_request["income"]),
+            "investment_amount": float(profile_from_request["investmentAmount"]),
+            "time_horizon": str(profile_from_request["timeHorizon"]),
+            "risk_tolerance": str(profile_from_request["riskTolerance"]),
+            "experience": str(profile_from_request["experience"])
+        }
+        
+        # 3. First, generate the core ETF portfolio recommendation.
+        recommendation = generate_recommendation(service_profile)
+        
+        # 4. Immediately use that new portfolio to run the long-term growth simulation.
+        projections = run_monte_carlo_simulation(
+            portfolio=recommendation["recommended_portfolio"],
+            initial_investment=service_profile["investment_amount"]
+        )
+        
+        # 5. Combine both results into a single response object. This is highly
+        # efficient as it provides all necessary dashboard data in one client network request.
+        final_response = {**recommendation, "projections": projections}
+        
+        return jsonify(final_response)
+
+    except Exception as e:
+        # A broad exception handler is used here because the underlying services
+        # (recommendation, projection) can have complex, multi-step failures.
+        print(f"An error occurred during recommendation: {e}")
+        return jsonify({"error": "An internal error occurred."}), 500
+========================================
+FILE: backend/routes/chat.py
+========================================
+
+# backend/routes/chat.py
+
+"""
+API Endpoint for the AI Chat Feature.
+
+This blueprint defines the '/chat' route, which serves as the public-facing
+HTTP interface for interacting with the AI language model. It handles incoming
+POST requests, validates the input, passes the user's message to the
+`llm_service`, and returns the AI's response.
+"""
+
+from flask import Blueprint, request, jsonify
+from services.llm_service import chat_with_model
+
+# A Blueprint is a way to organize a group of related views and other code.
+# We register this blueprint with the main Flask app in app.py.
+chat_bp = Blueprint("chat", __name__)
+
+@chat_bp.route("/chat", methods=["POST"])
+def chat():
+    """
+    Handles a user's chat message.
+
+    This function expects a POST request with a JSON body containing a 'message' key.
+    It delegates the core logic of communicating with the LLM to the `chat_with_model`
+    service function, following the principle of separation of concerns.
+
+    Request JSON Body:
+        {
+            "message": "What is a good ETF for beginners?"
+        }
+
+    Returns:
+        A JSON response containing the AI's reply, or an error message.
+        On success (200):
+            { "reply": "A good ETF for beginners is often..." }
+        On error (400 or 500):
+            { "error": "Error message details..." }
+    """
+    # Safely get the JSON payload from the request, defaulting to an empty dict.
+    data = request.get_json() or {}
+    user_input = data.get("message")
+
+    # 1. Validate that the required 'message' field is present in the request.
+    if not user_input:
+        # Return a 400 Bad Request error if the message is missing.
+        return jsonify({"error": "Missing 'message' field"}), 400
+    
+    try:
+        # 2. Delegate the actual AI interaction to the service layer.
+        # This keeps the route file clean and focused only on HTTP-related tasks.
+        reply = chat_with_model(user_input)
+    except Exception as e:
+        # 3. Handle potential exceptions from the service layer (e.g., API errors from OpenAI).
+        # Return a 500 Internal Server Error for unexpected issues.
+        return jsonify({"error": str(e)}), 500
+    
+    # 4. Return the successful response to the client.
+    return jsonify({"reply": reply})
+========================================
+FILE: backend/routes/etfs.py
+========================================
+
+# backend/routes/etfs.py
+
+"""
+API Endpoint for ETF Market Data.
+
+This blueprint serves the '/api/etfs/market-data' route, which provides a
+comprehensive, calculated dataset for all ETFs tracked by the Finora application.
+
+It orchestrates calls to the `market_service` to fetch raw data and then
+computes key performance indicators like returns, volatility, and Sharpe ratio
+before returning the enriched data to the client. This endpoint powers the
+"Market Data" page in the frontend application.
+"""
+
+from flask import Blueprint, jsonify
+from datetime import datetime
+from services.market_service import (
+    get_etf_metadata_from_db,
+    get_latest_prices_from_db,
+    get_historical_data_for_period,
+    calculate_ytd_return,
+    calculate_historical_return,
+    calculate_volatility,
+    calculate_sharpe_ratio
+)
+
+etfs_bp = Blueprint("etfs", __name__)
+
+@etfs_bp.route("/api/etfs/market-data", methods=["GET"])
+def get_top_etf_data():
+    """
+    Fetches and computes market data for all tracked ETFs.
+
+    This endpoint retrieves the master list of ETFs, fetches their latest prices
+    and historical data from the database cache, and then calculates several
+    key performance and risk metrics for each one.
+
+    Returns:
+        A JSON response containing a list of ETF data objects.
+        On success (200):
+            [
+                {
+                    "symbol": "VOO",
+                    "name": "Vanguard S&P 500 ETF",
+                    "price": 450.79,
+                    "ytd_return": 15.45,
+                    "expense_ratio": 0.03,
+                    "one_year_return": 18.21,
+                    "volatility": 14.88,
+                    "sharpe_ratio": 1.25
+                },
+                ...
+            ]
+        On error (404 or 500):
+            { "error": "Error message details..." }
+    """
+    try:
+        # 1. Fetch static metadata for all ETFs (name, symbol, expense ratio).
+        etf_metadata = get_etf_metadata_from_db()
+        if not etf_metadata:
+            return jsonify({"error": "No ETFs found in database."}), 404
+        
+        symbols = [etf['symbol'] for etf in etf_metadata]
+        
+        # 2. Fetch the most recent closing price for all symbols. This is more
+        # efficient than querying the price for each ETF inside the loop.
+        latest_prices = get_latest_prices_from_db(symbols)
+        
+        response_data = []
+        # 3. For each ETF, fetch its historical data and compute performance metrics.
+        for etf in etf_metadata:
+            symbol = etf['symbol']
+            current_price = latest_prices.get(symbol)
+            
+            # Fetch the last 365 days of data for 1-year return and volatility calculations.
+            historical_data_1yr = get_historical_data_for_period(symbol, 365)
+            # Use the helper to get data from Jan 1st of this year for YTD calculations.
+            historical_data_ytd = get_yearly_historical_data_from_db(symbol)
+
+            # Perform calculations by delegating to the market_service.
+            one_year_return = calculate_historical_return(historical_data_1yr)
+            ytd_return = calculate_ytd_return(current_price, historical_data_ytd)
+            volatility = calculate_volatility(historical_data_1yr)
+            sharpe_ratio = calculate_sharpe_ratio(historical_data_1yr)
+
+            # 4. Assemble the final data object for this ETF and add it to the list.
+            response_data.append({
+                'symbol': symbol,
+                'name': etf['name'],
+                'price': current_price or 0.0,
+                'ytd_return': ytd_return,
+                'expense_ratio': float(etf['expense_ratio']),
+                'one_year_return': one_year_return,
+                'volatility': volatility,
+                'sharpe_ratio': sharpe_ratio
+            })
+            
+        return jsonify(response_data)
+
+    except Exception as e:
+        # A general exception handler to catch any errors during the complex
+        # data fetching and calculation process.
+        print(f"An error occurred in the market data endpoint: {e}")
+        return jsonify({"error": "An internal server error occurred."}), 500
+
+
+def get_yearly_historical_data_from_db(symbol: str) -> list:
+    """
+    Helper function to get historical data from the beginning of the current year.
+
+    It calculates the number of days that have passed since January 1st of the
+    current year and then calls the main historical data service function to
+    retrieve the relevant data slice.
+
+    Args:
+        symbol (str): The ETF symbol to fetch data for.
+
+    Returns:
+        list: A list of historical data points for the year-to-date period.
+    """
+    today = datetime.now().date()
+    start_of_year = datetime(today.year, 1, 1).date()
+    days_since_start_of_year = (today - start_of_year).days
+    # Reuse the existing service function to get data for the calculated number of days.
+    return get_historical_data_for_period(symbol, days_since_start_of_year)
+========================================
+FILE: backend/services/__init__.py
+========================================
+
+
+========================================
+FILE: backend/services/llm_service.py
+========================================
+
+# backend/services/llm_service.py
+
+"""
+Service layer for interacting with the Large Language Model (LLM).
+
+This module acts as a dedicated interface or "wrapper" for the OpenAI API.
+It encapsulates all the logic required to communicate with the language model,
+including API key management, prompt formatting, and response parsing.
+
+By isolating this functionality, the rest of the application can interact
+with the AI without needing to know the specific details of the OpenAI library.
+This also makes it easier to switch to a different LLM provider in the future.
+"""
+
+import os
+from openai import OpenAI
+from dotenv import load_dotenv
+
+# Load the OPENAI_API_KEY from the .env file into the environment.
+load_dotenv()
+
+# The OpenAI client is instantiated here. It will automatically look for the
+# 'OPENAI_API_KEY' environment variable for authentication.
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+def _load_system_prompt() -> str:
+    """
+    Defines the system prompt to set the AI's persona and instructions.
+
+    This private helper function centralizes the core identity of the AI assistant,
+    ensuring it behaves consistently as "Finora" in all conversations.
+
+    Returns:
+        str: The system prompt message.
+    """
+    return (
+        "You are Finora, a helpful and knowledgeable financial advisor. "
+        "Respond concisely, clearly, and professionally to user queries "
+        "about investments, ETFs, allocation, and risk management."
+    )
+
+def chat_with_model(user_message: str) -> str:
+    """
+    Sends a user's message to the OpenAI API and returns the model's reply.
+
+    This function takes a plain text message from the user, combines it with the
+    system prompt, and sends it to the specified GPT model. It then parses the
+    API response to extract and return only the content of the assistant's message.
+
+    Args:
+        user_message (str): The message typed by the user.
+
+    Returns:
+        str: The text-only reply from the language model.
+
+    Raises:
+        openai.APIError: Can raise various exceptions from the OpenAI library if the
+                         API call fails (e.g., authentication error, server issue).
+                         These are caught and handled in the calling route.
+    """
+    system_prompt = _load_system_prompt()
+    
+    # The messages payload is structured with 'system' and 'user' roles, which is
+    # the standard format for chat-based models like GPT-4.
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user",   "content": user_message}
+    ]
+
+    # This is the primary API call to OpenAI.
+    # - model: Specifies which version of the model to use.
+    # - temperature: Controls the creativity of the response (lower is more deterministic).
+    # - max_tokens: Limits the length of the reply to prevent overly long or costly responses.
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=messages,
+        temperature=0.7,
+        max_tokens=500
+    )
+
+    # The API response is a complex object; we extract the text content from the
+    # first choice and strip any leading/trailing whitespace for a clean output.
+    return response.choices[0].message.content.strip()
+========================================
+FILE: backend/services/market_service.py
+========================================
+
+# backend/services/market_service.py
+
+"""
+Service Layer for Market Data and Financial Calculations.
+
+This module is the central hub for accessing all market-related data from the
+database cache and performing key financial calculations. It abstracts the
+database interactions and complex formulas away from the API routes and other
+services.
+
+The functions are divided into two categories:
+1. Data Retrieval: Functions that query the Supabase database.
+2. Financial Calculations: Pure functions that perform mathematical operations
+   on the retrieved data using libraries like pandas and numpy.
+"""
+
+import os
+import requests
+import numpy as np
+import pandas as pd
+from datetime import datetime, timedelta
+from supabase import create_client, Client
+from dotenv import load_dotenv
+
+# --- Configuration ---
+load_dotenv()
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+if not all([SUPABASE_URL, SUPABASE_KEY]):
+    raise ValueError("Supabase credentials must be set in .env file")
+
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# --- Service Functions ---
+
+def get_etf_metadata_from_db():
+    """
+    Fetches static metadata for all ETFs from the 'etfs' table.
+    
+    This includes descriptive, non-time-series data like name and expense ratio.
+    
+    Returns:
+        list: A list of dictionaries, where each dictionary represents an ETF.
+              Returns an empty list if no data is found.
+    """
+    response = supabase.table('etfs').select('symbol, name, expense_ratio').execute()
+    return response.data if response.data else []
+
+def get_latest_prices_from_db(symbols: list) -> dict:
+    """
+    Fetches the most recent closing price for each given symbol from the cache.
+
+    Iterates through a list of symbols and queries the database for the latest
+    price entry for each one.
+
+    Args:
+        symbols (list): A list of ETF symbols (e.g., ['VOO', 'QQQ']).
+
+    Returns:
+        dict: A dictionary mapping each symbol to its latest price.
+              Example: {'VOO': 450.79, 'QQQ': 380.50}
+    """
+    if not symbols:
+        return {}
+    
+    prices = {}
+    # Note: For a very large number of symbols (1000+), this loop could be slow.
+    # A more advanced implementation might use a single, more complex SQL query.
+    for symbol in symbols:
+        # For each symbol, get the latest entry by ordering by date descending.
+        response = supabase.table('etf_historical_data') \
+            .select('close_price') \
+            .eq('symbol', symbol) \
+            .order('date', desc=True) \
+            .limit(1) \
+            .execute()
+        
+        if response.data:
+            prices[symbol] = float(response.data[0]['close_price'])
+    
+    print(f"Fetched latest prices for {len(prices)} symbols from DB cache.")
+    return prices
+
+def get_historical_data_for_period(symbol: str, days: int) -> list:
+    """
+    Gets cached historical data for a symbol for a specific past period.
+
+    Args:
+        symbol (str): The ETF symbol to fetch data for.
+        days (int): The number of days of historical data to retrieve from today.
+
+    Returns:
+        list: A list of dictionaries, each with 'date' and 'close_price'.
+              Data is sorted in ascending chronological order.
+    """
+    start_date = datetime.now().date() - timedelta(days=days)
+    
+    response = supabase.table('etf_historical_data') \
+        .select('date, close_price') \
+        .eq('symbol', symbol) \
+        .gte('date', start_date.strftime('%Y-%m-%d')) \
+        .order('date', desc=False) \
+        .execute()
+    return response.data if response.data else []
+
+# --- Calculation Functions ---
+
+def calculate_historical_return(historical_data: list) -> float:
+    """
+    Calculates the total percentage return over a given historical data period.
+
+    Args:
+        historical_data (list): A list of dictionaries sorted chronologically.
+
+    Returns:
+        float: The total return as a percentage (e.g., 18.21 for 18.21%).
+    """
+    if len(historical_data) < 2:
+        return 0.0
+    start_price = float(historical_data[0]['close_price'])
+    end_price = float(historical_data[-1]['close_price'])
+    if start_price == 0:
+        return 0.0
+    return round(((end_price - start_price) / start_price) * 100, 2)
+
+def calculate_ytd_return(live_price: float, historical_data: list) -> float:
+    """
+    Calculates the Year-to-Date (YTD) return.
+
+    This compares the price at the start of the year with the current live price.
+
+    Args:
+        live_price (float): The current price of the security.
+        historical_data (list): Data from the start of the year to the present.
+
+    Returns:
+        float: The YTD return as a percentage.
+    """
+    if not historical_data or live_price is None:
+        return 0.0
+    start_price = float(historical_data[0]['close_price'])
+    if start_price == 0:
+        return 0.0
+    ytd_return = ((live_price - start_price) / start_price) * 100
+    return round(ytd_return, 2)
+
+def calculate_volatility(historical_data: list) -> float:
+    """
+    Calculates the annualized volatility of a security.
+
+    Volatility is a statistical measure of the dispersion of returns, commonly
+    used as a measure of risk. It is calculated as the standard deviation of
+    the daily percentage changes in price. This daily volatility is then
+    annualized by multiplying by the square root of 252 (the approximate
+    number of trading days in a year).
+
+    Args:
+        historical_data (list): A list of dictionaries with 'close_price'.
+
+    Returns:
+        float: The annualized volatility as a percentage (e.g., 15.88).
+    """
+    if len(historical_data) < 2:
+        return 0.0
+    prices = pd.Series([float(p['close_price']) for p in historical_data])
+    daily_returns = prices.pct_change().dropna()
+    # Annualize the daily standard deviation by multiplying by sqrt(252).
+    volatility = daily_returns.std() * np.sqrt(252) 
+    return round(volatility * 100, 2)
+
+def calculate_sharpe_ratio(historical_data: list, risk_free_rate: float = 0.04) -> float:
+    """
+    Calculates the Sharpe Ratio, a measure of risk-adjusted return.
+
+    The Sharpe Ratio indicates how much excess return an investor receives for
+    taking on additional risk. A higher Sharpe Ratio (e.g., > 1) is generally
+    considered better. It is calculated as the average excess return (portfolio
+    return minus the risk-free rate) divided by the portfolio's volatility.
+
+    Args:
+        historical_data (list): A list of dictionaries with 'close_price'.
+        risk_free_rate (float, optional): The annualized risk-free rate,
+                                           representing the return on a "zero-risk"
+                                           investment (e.g., a U.S. Treasury bill).
+                                           Defaults to 0.04 (4%).
+
+    Returns:
+        float: The annualized Sharpe Ratio (e.g., 1.25).
+    """
+    if len(historical_data) < 2:
+        return 0.0
+    prices = pd.Series([float(p['close_price']) for p in historical_data])
+    daily_returns = prices.pct_change().dropna()
+    if daily_returns.std() == 0:
+        return 0.0
+    
+    # Calculate the average daily return in excess of the daily risk-free rate.
+    excess_returns = daily_returns - (risk_free_rate / 252)
+    
+    # Annualize the result by multiplying the daily Sharpe ratio by sqrt(252).
+    sharpe_ratio = (excess_returns.mean() / excess_returns.std()) * np.sqrt(252)
+    return round(sharpe_ratio, 2)
+========================================
+FILE: backend/services/recommendation_service.py
+========================================
+
+# backend/services/recommendation_service.py
+
+"""
+Core Recommendation Engine for the Finora Application.
+
+This service is the "brain" of Finora, responsible for generating a personalized,
+data-driven investment portfolio for a user. It follows a sophisticated,
+multi-step process:
+
+1.  **Nuanced Risk Scoring**: It analyzes a user's full profile (age, income,
+    experience, etc.) to calculate a holistic risk score from 1 to 10.
+2.  **Dynamic Asset Allocation**: It uses this risk score to generate a custom
+    asset allocation model by blending predefined conservative and aggressive portfolios.
+3.  **Data-Driven Security Selection**: For each asset class in the custom model,
+    it selects the "best" ETF from a predefined universe based on a weighted
+    analysis of its Sharpe ratio, volatility, and expense ratio.
+4.  **Portfolio Assembly**: It combines the selected ETFs and allocations into a
+    final, actionable investment plan.
+"""
+
+import numpy as np
+import pandas as pd
+from datetime import datetime, timedelta
+from .market_service import (
+    get_etf_metadata_from_db, 
+    get_historical_data_for_period, 
+    calculate_volatility, 
+    calculate_sharpe_ratio,
+    calculate_historical_return
+)
+
+# A mapping of broad investment categories to a universe of corresponding ETF symbols.
+ETF_CATEGORIES = {
+    "US Large Cap": ["VOO", "VTI", "SPY", "IVV", "VTV", "VUG", "SCHX", "SCHG", "VV", "IWF", "IVW", "IWD", "IWB"],
+    "US Mid Cap": ["IJH", "VO", "IWR", "MDY"],
+    "US Small Cap": ["IJR", "VB", "VBR", "VXF", "IWM"],
+    "International Developed": ["VEA", "IEFA", "EFA", "SCHF", "SPDW", "EFV", "VGK", "VEU"],
+    "International Emerging": ["IEMG", "VWO"],
+    "Bonds": ["BND", "AGG", "BNDX", "VCIT", "BSV", "VTEB", "VCSH", "IEF", "GOVT", "LQD", "IUSB", "VGIT", "BIV"],
+    "Technology": ["QQQ", "VGT", "XLK", "QQQM", "IYW", "SMH"],
+    "Alternatives": ["GLD", "VNQ", "IBIT", "IAU", "FBTC"],
+}
+
+
+def _fetch_and_calculate_all_etf_metrics():
+    """
+    Pre-computes key financial metrics for every ETF in the database.
+
+    This is a data-intensive helper function that gathers all necessary performance
+    and risk data upfront. This prevents redundant calculations and database
+    calls later in the process.
+
+    Returns:
+        dict: A dictionary where keys are ETF symbols and values are their calculated metrics.
+    """
+    etf_metadata = get_etf_metadata_from_db()
+    all_metrics = {}
+
+    for etf in etf_metadata:
+        symbol = etf['symbol']
+        historical_data_1yr = get_historical_data_for_period(symbol, 365)
+        
+        # Gathers key metrics used for the selection process.
+        all_metrics[symbol] = {
+            "name": etf['name'],
+            "expense_ratio": float(etf['expense_ratio']),
+            "volatility": calculate_volatility(historical_data_1yr),
+            "sharpe_ratio": calculate_sharpe_ratio(historical_data_1yr),
+            "one_year_return": calculate_historical_return(historical_data_1yr)
+        }
+    return all_metrics
+
+def _find_best_etf_for_category(category: str, all_metrics: dict, risk_tolerance: str) -> dict:
+    """
+    Selects the best ETF for a given asset category based on a weighted score.
+
+    The scoring formula adjusts its weights based on the user's risk tolerance.
+    For example, a "conservative" user's score will more heavily favor a high
+    Sharpe ratio and low volatility.
+
+    Args:
+        category (str): The asset category (e.g., "US Large Cap").
+        all_metrics (dict): The dictionary of pre-computed metrics for all ETFs.
+        risk_tolerance (str): The user's self-reported risk tolerance.
+
+    Returns:
+        dict or None: The data for the highest-scoring ETF in the category, or None if none are found.
+    """
+    symbols_in_category = ETF_CATEGORIES.get(category, [])
+    candidate_etfs = {s: m for s, m in all_metrics.items() if s in symbols_in_category}
+    if not candidate_etfs: return None
+
+    # Define the weights for the scoring formula based on risk tolerance.
+    # Note: Volatility and expense are negative because lower is better.
+    if risk_tolerance == "conservative": weights = {"sharpe": 0.6, "volatility": -0.3, "expense": -0.1}
+    elif risk_tolerance == "aggressive": weights = {"sharpe": 0.8, "volatility": -0.1, "expense": -0.1}
+    else: weights = {"sharpe": 0.7, "volatility": -0.2, "expense": -0.1} # Moderate
+    
+    best_etf, max_score = None, -float('inf')
+    for symbol, metrics in candidate_etfs.items():
+        # The weighted score combines risk-adjusted return (Sharpe), risk (volatility), and cost (expense).
+        score = (metrics['sharpe_ratio'] * weights['sharpe'] + metrics['volatility'] * weights['volatility'] + metrics['expense_ratio'] * weights['expense'])
+        if score > max_score:
+            max_score, best_etf = score, {"symbol": symbol, **metrics}
+    return best_etf
+
+def generate_recommendation(profile: dict) -> dict:
+    """
+    The main orchestrator function to generate a personalized recommendation.
+
+    This function executes the full recommendation pipeline: calculating a risk score,
+    generating a dynamic asset allocation, selecting the best ETF for each allocation,
+    and assembling the final portfolio object.
+
+    Args:
+        profile (dict): The user's financial profile from the onboarding process.
+
+    Returns:
+        dict: A comprehensive dictionary containing the full recommendation details.
+    """
+    # 1. Analyze the user's profile to get a holistic risk score.
+    risk_score = _calculate_nuanced_risk_score(profile)
+    # 2. Generate a custom asset allocation based on the risk score.
+    dynamic_allocation_model = _generate_dynamic_allocation(risk_score)
+    # 3. Fetch and calculate metrics for all available ETFs.
+    all_etf_metrics = _fetch_and_calculate_all_etf_metrics()
+    
+    # 4. Build the final portfolio by selecting the best ETF for each asset class.
+    recommended_portfolio = []
+    investment_amount = profile.get("investment_amount", 0)
+    risk_tolerance = profile.get("risk_tolerance")
+
+    for category, percentage in dynamic_allocation_model.items():
+        best_etf = _find_best_etf_for_category(category, all_etf_metrics, risk_tolerance)
+        if best_etf:
+            # Also fetch the 1-year historical data for the selected ETF to be used
+            # for charting in the frontend.
+            chart_data = get_historical_data_for_period(best_etf['symbol'], 365)
+
+            recommended_portfolio.append({
+                "symbol": best_etf['symbol'],
+                "name": best_etf['name'],
+                "category": category,
+                "allocation": round(percentage * 100),
+                "investment_amount": round(investment_amount * percentage, 2),
+                "historical_data": chart_data
+            })
+            
+    # 5. Calculate the weighted average expected return of the final portfolio.
+    portfolio_expected_return = 0.0
+    for etf in recommended_portfolio:
+        symbol = etf['symbol']
+        allocation_pct = etf['allocation'] / 100.0
+        # Uses the 1-year historical return as a proxy for expected future return.
+        etf_return = all_etf_metrics.get(symbol, {}).get('one_year_return', 0.0)
+        portfolio_expected_return += allocation_pct * etf_return
+
+    # 6. Return the complete, structured recommendation object.
+    return {
+        "nuanced_risk_score": round(risk_score, 2),
+        "risk_tolerance_original": risk_tolerance,
+        "expected_annual_return": round(portfolio_expected_return, 2),
+        "recommended_portfolio": recommended_portfolio
+    }
+
+def _calculate_nuanced_risk_score(profile: dict) -> float:
+    """
+    Calculates a holistic risk score for a user on a scale of 1-10.
+
+    This function goes beyond the user's self-reported risk tolerance by applying
+    adjustments based on other profile factors that influence risk capacity, such
+    as age and investment time horizon. A younger user with a long time horizon,
+    for example, will have their risk score adjusted upwards.
+
+    Args:
+        profile (dict): The user's financial profile.
+
+    Returns:
+        float: A nuanced risk score between 1.0 (most conservative) and 10.0 (most aggressive).
+    """
+    base_score = {"conservative": 3.0, "moderate": 6.0, "aggressive": 9.0}.get(profile.get("risk_tolerance"), 5.0)
+    adjustment = 0.0
+    
+    # Adjust score based on age and time horizon (risk capacity).
+    age = profile.get("age", 40)
+    if age < 30: adjustment += 1.0 # Younger investors have more time to recover from downturns.
+    elif age > 50: adjustment -= 1.0 # Older investors should generally take less risk.
+    
+    time_horizon = profile.get("time_horizon", "medium")
+    if time_horizon == "long": adjustment += 1.0 # A longer timeline allows for more risk.
+    elif time_horizon == "short": adjustment -= 1.0 # A shorter timeline requires more caution.
+    
+    # Adjust score based on financial situation and experience.
+    investment_amount = profile.get("investment_amount", 0)
+    income = profile.get("income", 0)
+    if income > 0 and (investment_amount / income) > 0.20: adjustment -= 1.0 # Investing a large portion of income suggests less capacity for loss.
+    
+    experience = profile.get("experience", "intermediate")
+    if experience == "advanced": adjustment += 0.5 # More experienced investors may be comfortable with more risk.
+    elif experience == "beginner": adjustment -= 0.5 # Beginners should be introduced to risk more gradually.
+    
+    final_score = base_score + adjustment
+    # Clamp the final score to be within the 1-10 range.
+    return max(1.0, min(10.0, final_score))
+
+def _generate_dynamic_allocation(risk_score: float) -> dict:
+    """
+    Generates a dynamic asset allocation model by blending two portfolios.
+
+    This function creates a custom portfolio by interpolating between a predefined
+    "safest" portfolio (heavy on bonds) and a "riskiest" portfolio (heavy on equities),
+    based on the user's nuanced risk score.
+
+    Args:
+        risk_score (float): The user's risk score from 1-10.
+
+    Returns:
+        dict: A dictionary representing the custom asset allocation model (e.g., {"Bonds": 0.5, ...}).
+    """
+    safest_portfolio = {"Bonds": 0.70, "US Large Cap": 0.20, "International Developed": 0.10}
+    riskiest_portfolio = {"US Large Cap": 0.50, "International Developed": 0.25, "International Emerging": 0.15, "Technology": 0.10}
+    
+    # Convert the 1-10 risk score to a 0.0-1.0 percentage.
+    risk_percent = (risk_score - 1) / 9.0
+    
+    final_allocation = {}
+    all_categories = set(safest_portfolio.keys()) | set(riskiest_portfolio.keys())
+    
+    # Linearly interpolate the percentage for each asset class.
+    for category in all_categories:
+        safe_pct = safest_portfolio.get(category, 0)
+        risky_pct = riskiest_portfolio.get(category, 0)
+        final_pct = safe_pct + (risky_pct - safe_pct) * risk_percent
+        if final_pct > 0:
+            final_allocation[category] = final_pct
+            
+    # Normalize the final allocation to ensure it sums to 100%.
+    total_pct = sum(final_allocation.values())
+    return {category: pct / total_pct for category, pct in final_allocation.items()}
+========================================
+FILE: backend/services/onboarding_service.py
+========================================
+
+# backend/services/onboarding_service.py
+
+"""
+Service Layer for User Profile Data Management.
+
+This module acts as the data access layer for the 'profiles' table in the
+Supabase database. It encapsulates all direct database interactions (Create,
+Read, Delete) for user profiles, providing a clean and abstracted interface
+for the API routes.
+"""
+
+import os
+from supabase import create_client
+from dotenv import load_dotenv
+
+# Load environment variables from the .env file for Supabase credentials.
+load_dotenv()
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+# Initialize the Supabase client, which will be used for all DB operations.
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+
+def create_profile(data: dict) -> int:
+    """
+    Inserts a new user profile into the database.
+
+    Args:
+        data (dict): A dictionary containing the user's profile information,
+                     matching the columns of the 'profiles' table.
+
+    Returns:
+        int: The unique ID of the newly created profile record.
+
+    Raises:
+        Exception: If the database insert operation fails or returns an
+                   unexpected response format.
+    """
+    result = supabase.table("profiles").insert(data).execute()
+    try:
+        # The Supabase client returns a list containing the inserted record.
+        # We extract the 'id' from the first element of that list.
+        return result.data[0]["id"]
+    except (IndexError, TypeError):
+        # This guards against unexpected API responses where `data` might be empty or malformed.
+        raise Exception(f"Unexpected insert response from Supabase: {result}")
+
+
+def get_profile(profile_id: int) -> dict:
+    """
+    Retrieves a single user profile from the database by its ID.
+
+    Args:
+        profile_id (int): The primary key of the profile to retrieve.
+
+    Returns:
+        dict or None: A dictionary representing the user's profile if found,
+                      otherwise None.
+    """
+    result = (
+        supabase
+        .table("profiles")
+        .select("*")
+        .eq("id", profile_id)
+        # The .single() method is a Supabase helper that expects exactly one row
+        # in the result. It conveniently returns the object directly instead of a list.
+        .single()
+        .execute()
+    )
+    # The result's `data` attribute will be the profile dict if a record was found,
+    # otherwise it will be None.
+    return result.data if getattr(result, "data", None) else None
+
+
+def delete_profile(profile_id: int) -> bool:
+    """
+    Deletes a user profile from the database by its ID.
+
+    Args:
+        profile_id (int): The primary key of the profile to delete.
+
+    Returns:
+        bool: True if a record was successfully found and deleted, False otherwise.
+    """
+    result = (
+        supabase
+        .table("profiles")
+        .delete()
+        .eq("id", profile_id)
+        .execute()
+    )
+    # The Supabase delete operation returns the deleted record(s) in the `data`
+    # attribute. We can cast this to a boolean to check if any records were
+    # actually deleted (i.e., if the list is not empty).
+    return bool(getattr(result, "data", None))
+========================================
+FILE: backend/services/projection_service.py
+========================================
+
+# backend/services/projection_service.py
+
+"""
+Service for Projecting Long-Term Portfolio Growth via Monte Carlo Simulation.
+
+This module provides the functionality to simulate the potential future value of a
+given investment portfolio. A Monte Carlo simulation is a computational model that
+relies on repeated random sampling to model the probability of different outcomes.
+In this context, it simulates thousands of possible economic futures to provide a
+probabilistic forecast of investment returns, rather than a single deterministic one.
+"""
+
+import numpy as np
+from .market_service import get_historical_data_for_period, calculate_volatility, calculate_historical_return
+
+def run_monte_carlo_simulation(portfolio: list, initial_investment: float, years: int = 20, simulations: int = 500):
+    """
+    Runs a Monte Carlo simulation to project the growth of a given portfolio.
+
+    The simulation follows three main steps:
+    1.  Calculates the weighted average annual return and volatility for the entire
+        portfolio based on 5 years of historical data for its constituent ETFs.
+    2.  Runs thousands of simulations, each projecting the portfolio's value over a
+        set number of years. Each year's return is a random variable drawn from a
+        normal distribution defined by the portfolio's average return and volatility.
+    3.  Analyzes the distribution of final outcomes to determine conservative (10th
+        percentile), expected (50th percentile), and optimistic (90th percentile)
+        scenarios for specific time horizons.
+
+    Note:
+        The projection for intermediate years (5, 10, 15) is a simplified
+        approximation. It derives an implied compound annual growth rate (CAGR)
+        from the final 20-year outcomes and applies that rate back to the
+        intermediate years.
+
+    Args:
+        portfolio (list): The list of recommended ETF objects.
+        initial_investment (float): The starting value of the investment.
+        years (int, optional): The total number of years to simulate. Defaults to 20.
+        simulations (int, optional): The number of simulation runs. Defaults to 500.
+
+    Returns:
+        list: A list of dictionaries, each representing a projection for a specific year.
+              Example:
+              [
+                  {
+                      "year": 5,
+                      "conservative": 12000,
+                      "expected": 15000,
+                      "optimistic": 18000
+                  },
+                  ...
+              ]
+    """
+    # 1. Calculate the weighted average return and volatility of the entire portfolio.
+    # This creates a single statistical profile for the user's diversified portfolio.
+    portfolio_return = 0
+    portfolio_volatility = 0
+    
+    for etf in portfolio:
+        symbol = etf['symbol']
+        allocation = etf['allocation'] / 100.0
+        
+        # We use 5 years of historical data to establish a stable, long-term
+        # average for return and volatility, making the simulation less sensitive
+        # to short-term market anomalies.
+        historical_data = get_historical_data_for_period(symbol, 365 * 5)
+        
+        # Calculate annualized return and volatility for each individual ETF.
+        # The historical return is divided by 5 to get the average annual return.
+        annual_return = calculate_historical_return(historical_data) / 5
+        volatility = calculate_volatility(historical_data)
+        
+        # Add the ETF's contribution to the portfolio's overall metrics, weighted by its allocation.
+        portfolio_return += allocation * (annual_return / 100)
+        portfolio_volatility += allocation * (volatility / 100)
+
+    # 2. Run the simulations. Each simulation represents one possible future.
+    final_values = []
+    for _ in range(simulations):
+        yearly_values = [initial_investment]
+        for _ in range(years):
+            # For each year, simulate a return by drawing a random sample from a normal
+            # distribution (a bell curve) defined by the portfolio's mean return and volatility.
+            random_return = np.random.normal(portfolio_return, portfolio_volatility)
+            next_year_value = yearly_values[-1] * (1 + random_return)
+            yearly_values.append(next_year_value)
+        # We only store the final value at the end of the simulation period.
+        final_values.append(yearly_values[-1])
+
+    # 3. Determine the scenarios by analyzing the distribution of the final values.
+    # A percentile is the value below which a given percentage of observations fall.
+    # e.g., the 10th percentile is the outcome that was better than only 10% of all simulations.
+    projections = []
+    for year in [5, 10, 15, 20]:
+        
+        p10 = np.percentile(final_values, 10) # Conservative outcome
+        p50 = np.percentile(final_values, 50) # Expected outcome (median)
+        p90 = np.percentile(final_values, 90) # Optimistic outcome
+
+        # NOTE: This is a simplified approach. We calculate the implied Compound Annual
+        # Growth Rate (CAGR) for each final percentile outcome over the full period...
+        conservative_rate = (p10 / initial_investment) ** (1/years) - 1
+        expected_rate = (p50 / initial_investment) ** (1/years) - 1
+        optimistic_rate = (p90 / initial_investment) ** (1/years) - 1
+
+        # ...and then use that consistent rate to project the value at intermediate years.
+        projections.append({
+            "year": year,
+            "conservative": round(initial_investment * ((1 + conservative_rate) ** year)),
+            "expected": round(initial_investment * ((1 + expected_rate) ** year)),
+            "optimistic": round(initial_investment * ((1 + optimistic_rate) ** year)),
+        })
+        
+    return projections

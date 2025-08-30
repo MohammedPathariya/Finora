@@ -29,7 +29,7 @@ Externalize Configuration: Remove hardcoded API URLs and manage them with enviro
 
 Containerize the Backend: Create a Dockerfile for the Flask application to ensure a consistent and reproducible environment.
 
-Improve Code Documentation: Add detailed docstrings and comments to explain complex logic, especially in the recommendation engine.
+✅ Improve Code Documentation: Add detailed docstrings and comments to explain complex logic, especially in the recommendation engine.
 
 ✅ NEW — ETF Universe Management: Create a dedicated script or simple admin process to manage the list of ETFs in the Supabase etfs table. This makes it easy to add, remove, or update the securities the application tracks without manual database edits, preparing for the expansion in Phase 4.
 
@@ -230,3 +230,24 @@ Automated Financial Health Check: The AI agent from Phase 7 can now work with re
 Real Portfolio Tracking: Instead of just a plan, Finora can now track the actual performance of the user's investments.
 
 By the end of this roadmap, Finora will have evolved from an impressive planner into a premier, AI-powered financial co-pilot. It remains true to your original vision while incorporating the technical depth and complexity of a truly standout graduate-level project.
+
+
+
+
+
+
+
+Commands to get the code dumps according to the frontend or backend folders:
+
+
+
+find frontend -type f \( -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" -o -name "*.css" -o -name "*.html" -o -name "*.json" \) \
+-not -path "*/node_modules/*" -not -path "*/dist/*" \
+-exec sh -c 'echo "\n========================================\nFILE: {}\n========================================\n" >> frontend_dump.txt; cat "{}" >> frontend_dump.txt' \;
+
+
+
+find backend -type f \( -name "*.py" -o -name "*.r" -o -name "*.yml" -o -name "*.yaml" -o -name "*.json" -o -name "requirements.txt" -o -name "requirements-dev.txt" \) \
+-not -path "*/__pycache__/*" -not -path "*/.venv/*" -not -path "*/output/*" \
+-exec sh -c 'echo "\n========================================\nFILE: {}\n========================================\n" >> backend_dump.txt; cat "{}" >> backend_dump.txt' \;
+
