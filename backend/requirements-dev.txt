@@ -1,0 +1,8 @@
+# requirements-dev.txt
+
+# -- Testing --
+pytest==8.2.2
+
+# -- Code Quality & Formatting --
+black==24.4.2
+ruff==0.4.10

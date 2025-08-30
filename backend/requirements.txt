@@ -1,18 +1,17 @@
-# Flask and web server components
+# -- Core Web Framework --
 Flask==3.0.0
 Flask-Cors==4.0.1
 python-dotenv==1.0.1
-requests==2.32.3
 
-# Supabase client
+# -- Data Access & Manipulation --
 supabase==2.5.0
-
-# Data scraping and manipulation
 yfinance==0.2.40
 pandas==2.2.2
-pandas-stubs==2.2.2.240603
+numpy==1.26.4  # Added missing dependency
+requests==2.32.3
 
-# Existing financial APIs
-alpha-vantage==3.0.0
-finnhub-python==2.4.24
+# -- AI & Machine Learning --
 openai==1.35.3
+
+# -- Typing Support --
+pandas-stubs==2.2.2.240603
