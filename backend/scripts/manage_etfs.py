@@ -1,3 +1,5 @@
+# backend/scripts/manage_etfs.py
+
 """
 Command-Line Admin Tool for ETF Management.
 
