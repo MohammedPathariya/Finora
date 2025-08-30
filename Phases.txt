@@ -31,7 +31,7 @@ Containerize the Backend: Create a Dockerfile for the Flask application to ensur
 
 Improve Code Documentation: Add detailed docstrings and comments to explain complex logic, especially in the recommendation engine.
 
-NEW — ETF Universe Management: Create a dedicated script or simple admin process to manage the list of ETFs in the Supabase etfs table. This makes it easy to add, remove, or update the securities the application tracks without manual database edits, preparing for the expansion in Phase 4.
+✅ NEW — ETF Universe Management: Create a dedicated script or simple admin process to manage the list of ETFs in the Supabase etfs table. This makes it easy to add, remove, or update the securities the application tracks without manual database edits, preparing for the expansion in Phase 4.
 
 
 
