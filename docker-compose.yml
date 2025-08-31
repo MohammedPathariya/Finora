@@ -1,0 +1,20 @@
+# Specifies the version of the Docker Compose file format.
+version: '3.8'
+
+services:
+  # Define the backend service.
+  backend:
+    # Tell Docker Compose to build the image from the Dockerfile
+    # located in the './backend' directory.
+    build: ./backend
+    # Set a container name for easier identification.
+    container_name: finora-backend
+    # Map port 5000 on your host machine to port 5000 inside the container.
+    # This is how your frontend will be able to communicate with the backend.
+    ports:
+      - "5000:5000"
+    # Load environment variables from the .env file in the project root
+    # directly into the container. This is the secure and standard way
+    # to manage configuration and secrets.
+    env_file:
+      - ./backend/.env

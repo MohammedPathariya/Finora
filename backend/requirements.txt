@@ -15,3 +15,5 @@ openai==1.35.3
 
 # -- Typing Support --
 pandas-stubs==2.2.2.240603
+
+gunicorn==22.0.0

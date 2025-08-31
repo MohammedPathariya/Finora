@@ -1,0 +1,16 @@
+# Ignore Python's bytecode and cache directories
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore the virtual environment folder (if you use one)
+.venv
+venv/
+
+# Ignore sensitive environment files
+.env
+
+# Ignore git files
+.git
+.gitignore
